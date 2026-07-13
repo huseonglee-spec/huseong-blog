@@ -1,3 +1,17 @@
+export interface BlogPost {
+  id: string;
+  data: {
+    title: string;
+    subtitle?: string;
+    publishedAt: Date;
+    thumbnail?: string;
+    thumbnailAlt?: string;
+    draft: boolean;
+  };
+  bodyMarkdown: string;
+  updatedAt: Date;
+}
+
 type DatedPost = {
   id: string;
   data: {

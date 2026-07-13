@@ -4,6 +4,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import { getPublishedPosts } from "../lib/content";
 
 const posts = await getPublishedPosts();
+Astro.response.headers.set("Cache-Control", "no-store");
 ---
 
 <BaseLayout>

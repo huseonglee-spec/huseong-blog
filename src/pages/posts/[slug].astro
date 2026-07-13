@@ -1,21 +1,10 @@
 ---
-import type { GetStaticPaths } from "astro";
-
 import BlogFeed from "../../components/BlogFeed.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { getPublishedPosts } from "../../lib/content";
 import { postHref } from "../../lib/posts";
 
-export const getStaticPaths = (async () => {
-  const posts = await getPublishedPosts();
-
-  return posts.map((post) => ({
-    params: { slug: post.id },
-    props: { activeSlug: post.id },
-  }));
-}) satisfies GetStaticPaths;
-
-const { activeSlug } = Astro.props;
+const activeSlug = Astro.params.slug;
 const posts = await getPublishedPosts();
 const activePost = posts.find((post) => post.id === activeSlug);
 
@@ -23,6 +12,7 @@ if (!activePost) {
   return Astro.redirect("/404/");
 }
 
+Astro.response.headers.set("Cache-Control", "no-store");
 const description = activePost.data.subtitle ?? activePost.data.title;
 ---
 

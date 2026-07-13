@@ -1,8 +1,52 @@
-import { getCollection } from "astro:content";
+import { neon } from "@neondatabase/serverless";
+import { getSecret } from "astro:env/server";
 
-import { sortPostsNewest } from "./posts";
+import { sortPostsNewest, type BlogPost } from "./posts";
 
-export async function getPublishedPosts() {
-  const posts = await getCollection("posts", ({ data }) => !data.draft);
-  return sortPostsNewest(posts);
+interface PostRow {
+  slug: string;
+  title: string;
+  subtitle: string | null;
+  published_at: string | Date;
+  thumbnail: string | null;
+  thumbnail_alt: string | null;
+  draft: boolean;
+  body_markdown: string;
+  updated_at: string | Date;
+}
+
+function databaseUrl(): string {
+  const value = getSecret("DATABASE_URL");
+  if (!value) throw new Error("DATABASE_URL is not configured");
+  return value;
+}
+
+function mapRow(row: PostRow): BlogPost {
+  return {
+    id: row.slug,
+    data: {
+      title: row.title,
+      subtitle: row.subtitle ?? undefined,
+      publishedAt: new Date(row.published_at),
+      thumbnail: row.thumbnail ?? undefined,
+      thumbnailAlt: row.thumbnail_alt ?? undefined,
+      draft: row.draft,
+    },
+    bodyMarkdown: row.body_markdown,
+    updatedAt: new Date(row.updated_at),
+  };
+}
+
+export async function getPublishedPosts(): Promise<BlogPost[]> {
+  const sql = neon(databaseUrl());
+  const rows = await sql`
+    SELECT slug, title, subtitle, published_at, thumbnail, thumbnail_alt,
+           draft, body_markdown, updated_at
+      FROM posts
+     WHERE draft = false
+       AND published_at <= now()
+     ORDER BY published_at DESC, slug ASC
+  `;
+
+  return sortPostsNewest((rows as PostRow[]).map(mapRow));
 }

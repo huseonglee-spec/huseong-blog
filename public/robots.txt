@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://huseong.com/sitemap-index.xml
+Sitemap: https://huseong.com/sitemap.xml

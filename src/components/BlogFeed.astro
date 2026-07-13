@@ -1,11 +1,12 @@
 ---
-import { render, type CollectionEntry } from "astro:content";
+import type { BlogPost } from "../lib/posts";
 
+import { renderPostMarkdown } from "../lib/markdown";
 import { initialVisibleCount, postHref } from "../lib/posts";
 import TableOfContents from "./TableOfContents.astro";
 
 interface Props {
-  posts: CollectionEntry<"posts">[];
+  posts: BlogPost[];
   activeSlug?: string;
 }
 
@@ -19,10 +20,10 @@ const visibleCount = Math.min(
   initialVisibleCount(activeIndex, pageSize),
 );
 const renderedPosts = await Promise.all(
-  posts.map(async (post) => {
-    const { Content, headings } = await render(post);
-    return { post, Content, headings };
-  }),
+  posts.map(async (post) => ({
+    post,
+    ...(await renderPostMarkdown(post.bodyMarkdown)),
+  })),
 );
 const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
   year: "numeric",
@@ -39,7 +40,7 @@ const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
   data-page-size={pageSize}
 >
   {
-    renderedPosts.map(({ post, Content, headings }, index) => (
+    renderedPosts.map(({ post, html, headings }, index) => (
       <article
         class="post-container"
         id={`post-${post.id}`}
@@ -70,9 +71,7 @@ const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
 
         <TableOfContents headings={headings} />
 
-        <div class="post-body">
-          <Content />
-        </div>
+        <div class="post-body" set:html={html} />
       </article>
     ))
   }
