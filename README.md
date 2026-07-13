@@ -39,13 +39,27 @@ import Video from "../../components/Video.astro";
 
 이미지와 동영상 파일은 각각 `public/images/`, `public/videos/`에 둡니다.
 
-## 검증
+## 배포
+
+Vercel의 `huseongs-projects/huseong-com` 프로젝트가 `huseong.com`을 제공합니다. 현재 Vercel GitHub App은 이 저장소에 연결되어 있지 않으므로, 글을 추가한 뒤 CLI에서 검증·push·production deploy를 수행합니다.
+
+최초 연결 또는 새 환경:
 
 ```bash
-pnpm install
-pnpm test
-pnpm build
-pnpm dev
+npx vercel@55.0.0 link --yes --project huseong-com --scope huseongs-projects
+npx vercel@55.0.0 pull --yes --environment=production --scope huseongs-projects
 ```
 
-`main` 브랜치에 push하면 GitHub Pages 배포 워크플로가 실행됩니다.
+게시:
+
+```bash
+pnpm test
+pnpm build
+git add .
+git commit -m "Add post: 글 제목"
+git push
+npx vercel@55.0.0 build --prod --scope huseongs-projects
+npx vercel@55.0.0 deploy --prebuilt --prod --yes --scope huseongs-projects
+```
+
+배포 후 `https://huseong.com/`과 해당 글의 고유 URL에서 실제 응답을 확인합니다.
