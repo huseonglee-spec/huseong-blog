@@ -1,0 +1,120 @@
+---
+import { render, type CollectionEntry } from "astro:content";
+
+import { initialVisibleCount, postHref } from "../lib/posts";
+import TableOfContents from "./TableOfContents.astro";
+
+interface Props {
+  posts: CollectionEntry<"posts">[];
+  activeSlug?: string;
+}
+
+const { posts, activeSlug } = Astro.props;
+const pageSize = 5;
+const activeIndex = activeSlug
+  ? posts.findIndex((post) => post.id === activeSlug)
+  : -1;
+const visibleCount = Math.min(
+  posts.length,
+  initialVisibleCount(activeIndex, pageSize),
+);
+const renderedPosts = await Promise.all(
+  posts.map(async (post) => {
+    const { Content, headings } = await render(post);
+    return { post, Content, headings };
+  }),
+);
+const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+  timeZone: "UTC",
+});
+---
+
+<main
+  class="feed"
+  data-feed
+  data-active-slug={activeSlug ?? ""}
+  data-page-size={pageSize}
+>
+  {
+    renderedPosts.map(({ post, Content, headings }, index) => (
+      <article
+        class="post-container"
+        id={`post-${post.id}`}
+        data-post={post.id}
+        hidden={index >= visibleCount}
+      >
+        {post.data.thumbnail && (
+          <figure class="post-thumbnail">
+            <img
+              src={post.data.thumbnail}
+              alt={post.data.thumbnailAlt ?? ""}
+              loading={index === 0 ? "eager" : "lazy"}
+            />
+          </figure>
+        )}
+
+        <header class="post-header">
+          <time datetime={post.data.publishedAt.toISOString()}>
+            {dateFormatter.format(post.data.publishedAt)}
+          </time>
+          <h1>
+            <a class="post-title-link" href={postHref(post.id)}>
+              {post.data.title}
+            </a>
+          </h1>
+          {post.data.subtitle && <p class="post-subtitle">{post.data.subtitle}</p>}
+        </header>
+
+        <TableOfContents headings={headings} />
+
+        <div class="post-body">
+          <Content />
+        </div>
+      </article>
+    ))
+  }
+
+  <div class="feed-sentinel" data-feed-sentinel aria-hidden="true"></div>
+</main>
+
+<script>
+  const feed = document.querySelector<HTMLElement>("[data-feed]");
+
+  if (feed) {
+    const posts = Array.from(
+      feed.querySelectorAll<HTMLElement>("[data-post]"),
+    );
+    const sentinel = feed.querySelector<HTMLElement>("[data-feed-sentinel]");
+    const pageSize = Number(feed.dataset.pageSize) || 5;
+
+    const revealNextBatch = () => {
+      const hiddenPosts = posts.filter((post) => post.hidden);
+      hiddenPosts.slice(0, pageSize).forEach((post) => {
+        post.hidden = false;
+      });
+    };
+
+    if (sentinel && posts.some((post) => post.hidden)) {
+      const observer = new IntersectionObserver((entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+
+        revealNextBatch();
+        if (!posts.some((post) => post.hidden)) observer.disconnect();
+      }, { rootMargin: "480px 0px" });
+
+      observer.observe(sentinel);
+    }
+
+    const activeSlug = feed.dataset.activeSlug;
+    if (activeSlug) {
+      requestAnimationFrame(() => {
+        document
+          .getElementById(`post-${activeSlug}`)
+          ?.scrollIntoView({ block: "start" });
+      });
+    }
+  }
+</script>

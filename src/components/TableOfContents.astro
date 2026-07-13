@@ -1,0 +1,30 @@
+---
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
+interface Props {
+  headings: Heading[];
+}
+
+const headings = Astro.props.headings.filter(
+  (heading) => heading.depth >= 1 && heading.depth <= 3,
+);
+---
+
+{
+  headings.length > 0 && (
+    <nav class="table-of-contents" aria-label="목차">
+      <p class="table-of-contents__label">목차</p>
+      <ol>
+        {headings.map((heading) => (
+          <li data-depth={heading.depth}>
+            <a href={`#${heading.slug}`}>{heading.text}</a>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  )
+}

@@ -1,0 +1,16 @@
+---
+interface Props {
+  src: string;
+  poster?: string;
+  title?: string;
+}
+
+const { src, poster, title } = Astro.props;
+---
+
+<figure class="media-embed">
+  <video src={src} poster={poster} title={title} controls preload="metadata">
+    이 브라우저에서는 동영상을 재생할 수 없습니다.
+  </video>
+  {title && <figcaption>{title}</figcaption>}
+</figure>
