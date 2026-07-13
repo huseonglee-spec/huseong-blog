@@ -20,7 +20,7 @@ cd /home/huseong/Workspace/huseong-blog
 현재 `.env.local`에는 Vercel 연동으로 받은 개발용 `DATABASE_URL`이 있으며 Git에서 제외됩니다. 새 환경에서는 다음 명령으로 다시 받습니다.
 
 ```bash
-pnpm dlx vercel@latest link --yes --project huseong-blog-prod --scope huseongs-projects
+pnpm dlx vercel@latest link --yes --project huseong-blog-runtime --scope huseongs-projects
 pnpm dlx vercel@latest env pull .env.local --environment=development
 ```
 
@@ -104,7 +104,7 @@ pnpm smoke
 ```bash
 pnpm test
 pnpm build
-pnpm dlx vercel@latest deploy --prebuilt --prod --yes --scope huseongs-projects
+pnpm dlx vercel@latest deploy --prod --yes --scope huseongs-projects
 ```
 
-Vercel 프로젝트는 `huseongs-projects/huseong-blog-prod`입니다.
+Vercel 프로젝트는 `huseongs-projects/huseong-blog-runtime`입니다.
