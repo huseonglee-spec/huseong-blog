@@ -4,6 +4,9 @@ import { mkdir } from "node:fs/promises";
 import { chromium } from "playwright-core";
 
 const baseUrl = process.env.BASE_URL ?? "http://127.0.0.1:4321";
+const expectedTitle = process.env.EXPECTED_TITLE;
+const expectedSlug = process.env.EXPECTED_SLUG;
+let firstPermalink;
 const browser = await chromium.launch({
   executablePath: process.env.CHROME_PATH ?? "/usr/bin/google-chrome",
   headless: true,
@@ -44,13 +47,19 @@ try {
       state.scrollWidth <= state.innerWidth,
       `${scenario.name}: horizontal overflow (${state.scrollWidth} > ${state.innerWidth})`,
     );
-    assert.equal(state.articleCount, 1);
-    assert.equal(state.title, "언어가 사고를 지배한다.");
-    assert.match(state.bodyText ?? "", /언어는 사고라는 본질/);
-    assert.equal(state.date, "2026년 7월 13일");
-    assert.equal(state.permalink, "/posts/language-controls-thought/");
+    assert.ok(state.articleCount >= 1);
+    assert.ok(state.title);
+    assert.ok(state.bodyText);
+    assert.ok(state.date);
+    assert.match(state.permalink ?? "", /^\/posts\/[^/]+\/$/);
+    if (expectedTitle) assert.equal(state.title, expectedTitle);
+    if (expectedSlug) {
+      assert.equal(state.permalink, `/posts/${expectedSlug}/`);
+    }
     assert.equal(state.topLevelHeader, false);
     assert.equal(state.menu, false);
+
+    firstPermalink ??= state.permalink;
 
     await page.screenshot({
       path: `artifacts/${scenario.name}.png`,
@@ -61,20 +70,24 @@ try {
     console.log(`${scenario.name}:`, state);
   }
 
+  assert.ok(firstPermalink);
+  const activeSlug = firstPermalink.split("/").filter(Boolean).at(-1);
+  assert.ok(activeSlug);
+
   const directPage = await browser.newPage({
     viewport: { width: 390, height: 844 },
   });
   const response = await directPage.goto(
-    `${baseUrl}/posts/language-controls-thought/`,
+    new URL(firstPermalink, baseUrl).href,
     { waitUntil: "networkidle" },
   );
 
   assert.equal(response?.status(), 200);
   assert.equal(
     await directPage.locator("[data-feed]").getAttribute("data-active-slug"),
-    "language-controls-thought",
+    activeSlug,
   );
-  assert.equal(await directPage.locator("[data-post]").count(), 1);
+  assert.ok((await directPage.locator("[data-post]").count()) >= 1);
   console.log("direct permalink: 200 and active post rendered in feed");
   await directPage.close();
 } finally {

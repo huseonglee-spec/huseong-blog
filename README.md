@@ -41,12 +41,12 @@ import Video from "../../components/Video.astro";
 
 ## 배포
 
-Vercel의 `huseongs-projects/huseong-com` 프로젝트가 `huseong.com`을 제공합니다. 현재 Vercel GitHub App은 이 저장소에 연결되어 있지 않으므로, 글을 추가한 뒤 CLI에서 검증·push·production deploy를 수행합니다.
+Vercel의 `huseongs-projects/huseong-blog-prod` 프로젝트가 `huseong.com`을 제공합니다. 현재 Vercel GitHub App은 이 저장소에 연결되어 있지 않으므로, 글을 추가한 뒤 CLI에서 검증·push·production deploy를 수행합니다.
 
 최초 연결 또는 새 환경:
 
 ```bash
-npx vercel@55.0.0 link --yes --project huseong-com --scope huseongs-projects
+npx vercel@55.0.0 link --yes --project huseong-blog-prod --scope huseongs-projects
 npx vercel@55.0.0 pull --yes --environment=production --scope huseongs-projects
 ```
 
