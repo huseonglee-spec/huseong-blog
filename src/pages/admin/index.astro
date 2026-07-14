@@ -1,0 +1,41 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { getAdminPosts } from "../../lib/server/admin-posts";
+
+const session = Astro.locals.adminSession!;
+const posts = await getAdminPosts();
+const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+---
+
+<AdminLayout title="글 관리" authenticated csrfToken={session.csrfToken}>
+  <section class="admin-panel">
+    <div class="admin-heading-row">
+      <div>
+        <h1>글 관리</h1>
+        <p class="admin-help">공개 글과 초안을 모두 표시합니다.</p>
+      </div>
+      <a class="button-link" href="/admin/posts/new/">새 글</a>
+    </div>
+
+    {posts.length === 0 ? (
+      <p>아직 작성한 글이 없습니다.</p>
+    ) : (
+      <ul class="post-list">
+        {posts.map((post) => (
+          <li>
+            <a href={`/admin/posts/${post.slug}/edit/`}>
+              <span class="post-list__title">{post.title}</span>
+              <span class="post-list__meta">
+                {post.draft && <span class="post-list__badge">초안 · </span>}
+                {dateFormatter.format(post.updatedAt)} 수정
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+</AdminLayout>

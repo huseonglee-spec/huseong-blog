@@ -54,6 +54,7 @@ if (command === "list") {
       thumbnail_alt = EXCLUDED.thumbnail_alt,
       draft = EXCLUDED.draft,
       body_markdown = EXCLUDED.body_markdown,
+      revision = posts.revision + 1,
       updated_at = now()
     RETURNING slug, title, published_at, draft, updated_at
   `;

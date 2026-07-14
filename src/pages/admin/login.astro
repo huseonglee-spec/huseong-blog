@@ -1,0 +1,30 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+
+if (Astro.locals.adminSession) return Astro.redirect("/admin/", 303);
+const error = Astro.url.searchParams.get("error");
+---
+
+<AdminLayout title="관리자 로그인">
+  <section class="admin-panel admin-panel--narrow">
+    <h1 class="admin-heading">관리자 로그인</h1>
+    <form class="form-grid" action="/api/admin/login/" method="post">
+      <div class="form-row">
+        <label for="admin-password">비밀번호</label>
+        <input
+          id="admin-password"
+          name="password"
+          type="password"
+          minlength="8"
+          maxlength="1024"
+          autocomplete="current-password"
+          autofocus
+          required
+        />
+      </div>
+      {error === "invalid" && <p class="admin-error" role="alert">비밀번호를 확인해 주세요.</p>}
+      {error === "limited" && <p class="admin-error" role="alert">로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.</p>}
+      <button type="submit">로그인</button>
+    </form>
+  </section>
+</AdminLayout>

@@ -7,6 +7,7 @@
     "dev": "astro dev",
     "build": "astro check && astro build",
     "db:migrate": "tsx scripts/migrate.ts",
+    "admin:password": "tsx scripts/set-admin-password.ts",
     "post": "tsx scripts/posts.ts",
     "preview": "astro preview",
     "smoke": "node scripts/smoke.mjs",

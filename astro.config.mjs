@@ -5,5 +5,8 @@ export default defineConfig({
   site: "https://huseong.com",
   trailingSlash: "always",
   output: "server",
+  security: {
+    checkOrigin: true,
+  },
   adapter: vercel(),
 });

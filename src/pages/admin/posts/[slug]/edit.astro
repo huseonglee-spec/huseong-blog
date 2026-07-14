@@ -1,0 +1,25 @@
+---
+import AdminPostForm from "../../../../components/AdminPostForm.astro";
+import AdminLayout from "../../../../layouts/AdminLayout.astro";
+import { getAdminPost } from "../../../../lib/server/admin-posts";
+
+const session = Astro.locals.adminSession!;
+const slug = Astro.params.slug ?? "";
+const post = await getAdminPost(slug);
+if (!post) return new Response("글을 찾을 수 없습니다.", { status: 404 });
+const saved = Astro.url.searchParams.get("saved") === "1";
+const created = Astro.url.searchParams.get("created") === "1";
+---
+
+<AdminLayout title={`${post.title} 수정`} authenticated csrfToken={session.csrfToken}>
+  <section class="admin-panel">
+    <div class="admin-heading-row">
+      <div>
+        <h1>글 수정</h1>
+        {(saved || created) && <p class="admin-help" role="status">저장했습니다.</p>}
+      </div>
+      <a href="/admin/">목록으로</a>
+    </div>
+    <AdminPostForm csrfToken={session.csrfToken} post={post} />
+  </section>
+</AdminLayout>
