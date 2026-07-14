@@ -23,7 +23,6 @@ await sql`
     thumbnail text,
     thumbnail_alt text,
     draft boolean NOT NULL DEFAULT false,
-    revision integer NOT NULL DEFAULT 1 CONSTRAINT posts_revision_positive CHECK (revision > 0),
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
   )
@@ -31,23 +30,7 @@ await sql`
 
 await sql`
   ALTER TABLE posts
-    ADD COLUMN IF NOT EXISTS revision integer NOT NULL DEFAULT 1
-`;
-
-await sql`
-  DO $migration$
-  BEGIN
-    IF NOT EXISTS (
-      SELECT 1
-        FROM pg_constraint
-       WHERE conrelid = 'posts'::regclass
-         AND conname = 'posts_revision_positive'
-    ) THEN
-      ALTER TABLE posts
-        ADD CONSTRAINT posts_revision_positive CHECK (revision > 0);
-    END IF;
-  END
-  $migration$
+    DROP COLUMN IF EXISTS revision
 `;
 
 await sql`

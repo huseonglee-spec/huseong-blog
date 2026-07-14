@@ -14,7 +14,9 @@ describe("administrator authentication helpers", () => {
     expect(adminRouteKind("/admin/login/")).toBe("public");
     expect(adminRouteKind("/api/admin/login/")).toBe("public");
     expect(adminRouteKind("/admin/")).toBe("page");
-    expect(adminRouteKind("/api/admin/posts/")).toBe("api");
+    expect(adminRouteKind("/api/admin/logout/")).toBe("api");
+    expect(adminRouteKind("/admin/posts/new/")).toBe("none");
+    expect(adminRouteKind("/api/admin/posts/")).toBe("none");
     expect(adminRouteKind("/posts/example/")).toBe("none");
   });
 

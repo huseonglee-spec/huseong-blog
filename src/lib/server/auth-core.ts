@@ -23,8 +23,8 @@ function withoutTrailingSlash(pathname: string): string {
 export function adminRouteKind(pathname: string): AdminRouteKind {
   const path = withoutTrailingSlash(pathname);
   if (path === "/admin/login" || path === "/api/admin/login") return "public";
-  if (path === "/admin" || path.startsWith("/admin/")) return "page";
-  if (path === "/api/admin" || path.startsWith("/api/admin/")) return "api";
+  if (path === "/admin") return "page";
+  if (path === "/api/admin/logout") return "api";
   return "none";
 }
 
