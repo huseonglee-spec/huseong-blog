@@ -47,11 +47,10 @@ a:hover {
 
 .blog-shell {
   display: grid;
-  grid-template-columns: minmax(170px, 210px) minmax(0, 760px);
+  grid-template-columns: minmax(170px, 1fr) minmax(0, 760px) minmax(170px, 1fr);
   align-items: start;
-  justify-content: center;
   gap: clamp(28px, 5vw, 64px);
-  width: min(100% - 32px, 1120px);
+  width: min(100% - 32px, 1408px);
   margin-inline: auto;
   padding-block: clamp(48px, 9vw, 112px);
 }
@@ -61,6 +60,7 @@ a:hover {
 }
 
 .feed {
+  grid-column: 2;
   width: 100%;
   min-width: 0;
 }
@@ -68,7 +68,10 @@ a:hover {
 .category-sidebar {
   position: sticky;
   top: 2rem;
+  grid-column: 1;
+  justify-self: end;
   align-self: start;
+  width: min(210px, 100%);
   min-width: 0;
 }
 
@@ -362,14 +365,22 @@ a:hover {
   text-align: center;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1080px) {
   .blog-shell {
     grid-template-columns: minmax(0, 760px);
+    justify-content: center;
     gap: 1.25rem;
+  }
+
+  .feed {
+    grid-column: 1;
   }
 
   .category-sidebar {
     position: static;
+    grid-column: 1;
+    justify-self: stretch;
+    width: 100%;
     padding: 1rem 1.1rem;
     border: 1px solid var(--line);
     background: color-mix(in srgb, var(--sheet) 68%, transparent);
