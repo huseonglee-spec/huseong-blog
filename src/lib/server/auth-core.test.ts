@@ -5,6 +5,7 @@ import {
   hashToken,
   isAllowedOrigin,
   loginRetryAfter,
+  safeReturnPath,
   sessionCookieOptions,
   tokensMatch,
 } from "./auth-core";
@@ -15,6 +16,7 @@ describe("administrator authentication helpers", () => {
     expect(adminRouteKind("/api/admin/login/")).toBe("public");
     expect(adminRouteKind("/admin/")).toBe("page");
     expect(adminRouteKind("/api/admin/logout/")).toBe("api");
+    expect(adminRouteKind("/api/posts/")).toBe("api");
     expect(adminRouteKind("/admin/posts/new/")).toBe("none");
     expect(adminRouteKind("/api/admin/posts/")).toBe("none");
     expect(adminRouteKind("/posts/example/")).toBe("none");
@@ -24,6 +26,13 @@ describe("administrator authentication helpers", () => {
     expect(isAllowedOrigin("https://huseong.com/admin/", "https://huseong.com")).toBe(true);
     expect(isAllowedOrigin("https://huseong.com/admin/", "https://huseong.com.evil.test")).toBe(false);
     expect(isAllowedOrigin("https://huseong.com/admin/", null)).toBe(false);
+  });
+
+  it("accepts only local login return paths", () => {
+    expect(safeReturnPath("/?compose=1#new-post", "/admin/")).toBe("/?compose=1#new-post");
+    expect(safeReturnPath("https://evil.example/", "/admin/")).toBe("/admin/");
+    expect(safeReturnPath("//evil.example/", "/admin/")).toBe("/admin/");
+    expect(safeReturnPath(null, "/admin/")).toBe("/admin/");
   });
 
   it("applies both per-IP and global login attempt limits", () => {

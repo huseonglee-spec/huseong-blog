@@ -24,8 +24,21 @@ export function adminRouteKind(pathname: string): AdminRouteKind {
   const path = withoutTrailingSlash(pathname);
   if (path === "/admin/login" || path === "/api/admin/login") return "public";
   if (path === "/admin") return "page";
-  if (path === "/api/admin/logout") return "api";
+  if (path === "/api/admin/logout" || path === "/api/posts") return "api";
   return "none";
+}
+
+export function safeReturnPath(value: unknown, fallback: string): string {
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
+    return fallback;
+  }
+  try {
+    const url = new URL(value, "https://huseong.com");
+    if (url.origin !== "https://huseong.com") return fallback;
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return fallback;
+  }
 }
 
 export function isAllowedOrigin(requestUrl: string, origin: string | null): boolean {

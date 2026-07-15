@@ -8,7 +8,8 @@ import { getAdminSession } from "./lib/server/auth";
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const routeKind = adminRouteKind(context.url.pathname);
-  if (routeKind === "none") return next();
+  const needsSession = routeKind !== "none" || context.url.pathname === "/";
+  if (!needsSession) return next();
 
   const secure = context.url.protocol === "https:";
   const cookieName = sessionCookieName(secure);

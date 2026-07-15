@@ -51,6 +51,10 @@ a:hover {
   padding-block: clamp(48px, 9vw, 112px);
 }
 
+.feed.feed--with-home-actions {
+  padding-top: clamp(84px, 9vw, 112px);
+}
+
 .post-container {
   scroll-margin-top: 32px;
   padding: clamp(28px, 6vw, 58px);
@@ -59,7 +63,7 @@ a:hover {
   background: color-mix(in srgb, var(--sheet) 94%, transparent);
 }
 
-.post-container + .post-container {
+.post-container:not([hidden]) + .post-container {
   margin-top: clamp(22px, 4vw, 36px);
 }
 
@@ -274,6 +278,10 @@ a:hover {
   .feed {
     width: min(100% - 20px, 760px);
     padding-block: 20px 52px;
+  }
+
+  .feed.feed--with-home-actions {
+    padding-top: 72px;
   }
 
   .post-container {

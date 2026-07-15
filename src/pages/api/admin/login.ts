@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 
 import {
   isAllowedOrigin,
+  safeReturnPath,
   sessionCookieName,
   sessionCookieOptions,
 } from "../../../lib/server/auth-core";
@@ -18,6 +19,12 @@ function redirect(location: string, status = 303, headers: HeadersInit = {}): Re
   });
 }
 
+function loginPageLocation(error: "invalid" | "limited", next: string): string {
+  const params = new URLSearchParams({ error });
+  if (next !== "/admin/") params.set("next", next);
+  return `/admin/login/?${params.toString()}`;
+}
+
 export const POST: APIRoute = async (context) => {
   if (!isAllowedOrigin(context.request.url, context.request.headers.get("origin"))) {
     return new Response("허용되지 않은 요청입니다.", { status: 403 });
@@ -32,9 +39,10 @@ export const POST: APIRoute = async (context) => {
     }
     return redirect("/admin/login/?error=invalid");
   }
+  const next = safeReturnPath(form.get("next"), "/admin/");
   const password = form.get("password");
   if (typeof password !== "string" || Buffer.byteLength(password, "utf8") > 1_024) {
-    return redirect("/admin/login/?error=invalid");
+    return redirect(loginPageLocation("invalid", next));
   }
 
   let clientAddress = "unknown";
@@ -50,16 +58,16 @@ export const POST: APIRoute = async (context) => {
   const result = await loginWithPassword(password, clientAddress, previousToken);
 
   if (result.status === "limited") {
-    return redirect("/admin/login/?error=limited", 303, {
+    return redirect(loginPageLocation("limited", next), 303, {
       "Retry-After": String(result.retryAfter),
     });
   }
   if (result.status === "invalid") {
-    return redirect("/admin/login/?error=invalid");
+    return redirect(loginPageLocation("invalid", next));
   }
 
   context.cookies.set(cookieName, result.token, sessionCookieOptions(secure));
-  return redirect("/admin/");
+  return redirect(next);
 };
 
 export const ALL: APIRoute = () =>

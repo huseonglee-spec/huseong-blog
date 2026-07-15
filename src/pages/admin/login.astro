@@ -1,7 +1,9 @@
 ---
 import AdminLayout from "../../layouts/AdminLayout.astro";
+import { safeReturnPath } from "../../lib/server/auth-core";
 
-if (Astro.locals.adminSession) return Astro.redirect("/admin/", 303);
+const next = safeReturnPath(Astro.url.searchParams.get("next"), "/admin/");
+if (Astro.locals.adminSession) return Astro.redirect(next, 303);
 const error = Astro.url.searchParams.get("error");
 ---
 
@@ -9,6 +11,7 @@ const error = Astro.url.searchParams.get("error");
   <section class="admin-panel admin-panel--narrow">
     <h1 class="admin-heading">관리자 로그인</h1>
     <form class="form-grid" action="/api/admin/login/" method="post">
+      <input type="hidden" name="next" value={next} />
       <div class="form-row">
         <label for="admin-password">비밀번호</label>
         <input

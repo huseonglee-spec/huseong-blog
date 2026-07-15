@@ -23,6 +23,7 @@ await sql`
     thumbnail text,
     thumbnail_alt text,
     draft boolean NOT NULL DEFAULT false,
+    submission_id uuid,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
   )
@@ -30,7 +31,14 @@ await sql`
 
 await sql`
   ALTER TABLE posts
-    DROP COLUMN IF EXISTS revision
+    DROP COLUMN IF EXISTS revision,
+    ADD COLUMN IF NOT EXISTS submission_id uuid
+`;
+
+await sql`
+  CREATE UNIQUE INDEX IF NOT EXISTS posts_submission_id_unique
+      ON posts (submission_id)
+   WHERE submission_id IS NOT NULL
 `;
 
 await sql`

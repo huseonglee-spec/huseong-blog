@@ -3,14 +3,26 @@ import type { BlogPost } from "../lib/posts";
 
 import { renderPostMarkdown } from "../lib/markdown";
 import { initialVisibleCount, postHref } from "../lib/posts";
+import NewPostComposer from "./NewPostComposer.astro";
 import TableOfContents from "./TableOfContents.astro";
 
 interface Props {
   posts: BlogPost[];
   activeSlug?: string;
+  composerCsrfToken?: string;
+  composerSubmissionId?: string;
+  composerOpen?: boolean;
+  withHomeActions?: boolean;
 }
 
-const { posts, activeSlug } = Astro.props;
+const {
+  posts,
+  activeSlug,
+  composerCsrfToken,
+  composerSubmissionId,
+  composerOpen = false,
+  withHomeActions = false,
+} = Astro.props;
 const pageSize = 5;
 const activeIndex = activeSlug
   ? posts.findIndex((post) => post.id === activeSlug)
@@ -34,11 +46,18 @@ const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
 ---
 
 <main
-  class="feed"
+  class:list={["feed", { "feed--with-home-actions": withHomeActions }]}
   data-feed
   data-active-slug={activeSlug ?? ""}
   data-page-size={pageSize}
 >
+  {composerCsrfToken && composerSubmissionId && (
+    <NewPostComposer
+      csrfToken={composerCsrfToken}
+      submissionId={composerSubmissionId}
+      open={composerOpen}
+    />
+  )}
   {
     renderedPosts.map(({ post, html, headings }, index) => (
       <article

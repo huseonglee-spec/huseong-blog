@@ -1,12 +1,29 @@
 ---
+import { randomUUID } from "node:crypto";
+
 import BlogFeed from "../components/BlogFeed.astro";
+import HomeActions from "../components/HomeActions.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { getPublishedPosts } from "../lib/content";
 
 const posts = await getPublishedPosts();
+const session = Astro.locals.adminSession;
+const composerOpen = Boolean(session) && Astro.url.searchParams.get("compose") === "1";
+const submissionId = session ? randomUUID() : undefined;
 Astro.response.headers.set("Cache-Control", "no-store");
 ---
 
 <BaseLayout>
-  <BlogFeed posts={posts} />
+  <HomeActions
+    authenticated={Boolean(session)}
+    csrfToken={session?.csrfToken}
+    composerOpen={composerOpen}
+  />
+  <BlogFeed
+    posts={posts}
+    composerCsrfToken={session?.csrfToken}
+    composerSubmissionId={submissionId}
+    composerOpen={composerOpen}
+    withHomeActions
+  />
 </BaseLayout>

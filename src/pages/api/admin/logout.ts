@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 
 import {
   isAllowedOrigin,
+  safeReturnPath,
   sessionCookieName,
 } from "../../../lib/server/auth-core";
 import {
@@ -25,6 +26,7 @@ export const POST: APIRoute = async (context) => {
     const status = error instanceof RequestBodyTooLargeError ? 413 : 400;
     return new Response("요청 형식이 올바르지 않습니다.", { status });
   }
+  const returnTo = safeReturnPath(form.get("returnTo"), "/admin/login/");
   const session = context.locals.adminSession!;
   if (!validCsrfToken(session, form.get("csrfToken"))) {
     return new Response("보안 토큰이 올바르지 않습니다.", { status: 403 });
@@ -38,7 +40,7 @@ export const POST: APIRoute = async (context) => {
 
   return new Response(null, {
     status: 303,
-    headers: { Location: "/admin/login/", "Cache-Control": "no-store" },
+    headers: { Location: returnTo, "Cache-Control": "no-store" },
   });
 };
 

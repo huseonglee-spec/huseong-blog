@@ -1,0 +1,83 @@
+---
+interface Props {
+  authenticated: boolean;
+  csrfToken?: string;
+  composerOpen?: boolean;
+}
+
+const { authenticated, csrfToken = "", composerOpen = false } = Astro.props;
+---
+
+<header class="home-actions" aria-label="계정 메뉴">
+  {authenticated ? (
+    <>
+      <a
+        class="home-action"
+        href="/?compose=1#new-post"
+        data-open-composer
+        aria-controls="new-post"
+        aria-expanded={composerOpen ? "true" : "false"}
+      >새 글 쓰기</a>
+      <form action="/api/admin/logout/" method="post">
+        <input type="hidden" name="csrfToken" value={csrfToken} />
+        <input type="hidden" name="returnTo" value="/" />
+        <button class="home-action" type="submit">로그아웃</button>
+      </form>
+    </>
+  ) : (
+    <a class="home-action" href="/admin/login/?next=%2F">로그인</a>
+  )}
+</header>
+
+<script>
+  const openButton = document.querySelector<HTMLElement>("[data-open-composer]");
+  openButton?.addEventListener("click", (event) => {
+    const composer = document.querySelector<HTMLElement>("[data-new-post-composer]");
+    if (!composer) return;
+
+    event.preventDefault();
+    composer.hidden = false;
+    openButton.setAttribute("aria-expanded", "true");
+    history.replaceState(null, "", "/?compose=1#new-post");
+    composer.scrollIntoView({ behavior: "smooth", block: "start" });
+    composer.querySelector<HTMLInputElement>("[name=title]")?.focus();
+  });
+</script>
+
+<style>
+  .home-actions {
+    position: fixed;
+    z-index: 20;
+    top: clamp(14px, 2.5vw, 28px);
+    right: clamp(14px, 2.5vw, 30px);
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.35rem 0.65rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    box-shadow: 0 4px 20px rgba(65, 52, 38, 0.08);
+    backdrop-filter: blur(10px);
+  }
+
+  .home-actions form { margin: 0; }
+  .home-action {
+    display: inline;
+    padding: 0;
+    border: 0;
+    color: var(--link);
+    background: transparent;
+    font: inherit;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .home-action:hover { color: var(--ink); text-decoration: underline; }
+  .home-action:focus-visible {
+    outline: 2px solid var(--link);
+    outline-offset: 4px;
+    border-radius: 1px;
+  }
+</style>
