@@ -5,7 +5,11 @@ import { parseNewPostInput, parseSubmissionId } from "./new-post";
 describe("inline new post input", () => {
   it("builds a publishable post from a title and markdown body", () => {
     const post = parseNewPostInput(
-      { title: "  새 글  ", bodyMarkdown: "  첫 문단\n\n둘째 문단  " },
+      {
+        title: "  새 글  ",
+        category: " 생각 / 기록 ",
+        bodyMarkdown: "  첫 문단\n\n둘째 문단  ",
+      },
       new Date("2026-07-14T23:30:45.000Z"),
       "a1b2c3d4",
     );
@@ -17,6 +21,7 @@ describe("inline new post input", () => {
       thumbnail: null,
       thumbnailAlt: null,
       draft: false,
+      category: "생각/기록",
       bodyMarkdown: "첫 문단\n\n둘째 문단",
     });
     expect(post.publishedAt.toISOString()).toBe("2026-07-14T23:30:45.000Z");

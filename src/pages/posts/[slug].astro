@@ -22,5 +22,9 @@ const description = activePost.data.subtitle ?? activePost.data.title;
   canonicalPath={postHref(activePost.id)}
   type="article"
 >
-  <BlogFeed posts={posts} activeSlug={activePost.id} />
+  <BlogFeed
+    posts={posts}
+    activeSlug={activePost.id}
+    selectedCategory={activePost.data.category}
+  />
 </BaseLayout>

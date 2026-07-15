@@ -3,6 +3,7 @@ import { loadEnvFile } from "node:process";
 
 import { neon } from "@neondatabase/serverless";
 
+import { normalizeCategoryPath } from "../src/lib/categories";
 import { parsePostFile } from "../src/lib/post-file";
 
 try {
@@ -19,7 +20,7 @@ const [command, argument, confirmation] = process.argv.slice(2);
 
 if (command === "list") {
   const rows = await sql`
-    SELECT slug, title, published_at, draft, updated_at
+    SELECT slug, title, category_path, published_at, draft, updated_at
       FROM posts
      ORDER BY published_at DESC, slug ASC
   `;
@@ -28,7 +29,7 @@ if (command === "list") {
   if (!argument) throw new Error("Usage: pnpm post get <slug>");
   const rows = await sql`
     SELECT slug, title, subtitle, published_at, thumbnail, thumbnail_alt,
-           draft, body_markdown, created_at, updated_at
+           draft, category_path, body_markdown, created_at, updated_at
       FROM posts
      WHERE slug = ${argument}
   `;
@@ -38,13 +39,15 @@ if (command === "list") {
   if (!argument) throw new Error("Usage: pnpm post upsert <markdown-file>");
   const source = await readFile(argument, "utf8");
   const post = parsePostFile(source, argument);
+  const category = post.category ?? null;
   const rows = await sql`
     INSERT INTO posts (
       slug, title, subtitle, published_at, thumbnail, thumbnail_alt,
-      draft, body_markdown
+      draft, category_path, body_markdown
     ) VALUES (
       ${post.slug}, ${post.title}, ${post.subtitle}, ${post.publishedAt.toISOString()},
-      ${post.thumbnail}, ${post.thumbnailAlt}, ${post.draft}, ${post.bodyMarkdown}
+      ${post.thumbnail}, ${post.thumbnailAlt}, ${post.draft},
+      COALESCE(${category}, '미분류'), ${post.bodyMarkdown}
     )
     ON CONFLICT (slug) DO UPDATE SET
       title = EXCLUDED.title,
@@ -53,10 +56,25 @@ if (command === "list") {
       thumbnail = EXCLUDED.thumbnail,
       thumbnail_alt = EXCLUDED.thumbnail_alt,
       draft = EXCLUDED.draft,
+      category_path = COALESCE(${category}, posts.category_path),
       body_markdown = EXCLUDED.body_markdown,
       updated_at = now()
-    RETURNING slug, title, published_at, draft, updated_at
+    RETURNING slug, title, category_path, published_at, draft, updated_at
   `;
+  console.log(JSON.stringify(rows[0], null, 2));
+} else if (command === "category") {
+  if (!argument || !confirmation) {
+    throw new Error('Usage: pnpm post category <slug> "<category/path>"');
+  }
+  const category = normalizeCategoryPath(confirmation);
+  const rows = await sql`
+    UPDATE posts
+       SET category_path = ${category},
+           updated_at = now()
+     WHERE slug = ${argument}
+    RETURNING slug, title, category_path, updated_at
+  `;
+  if (rows.length === 0) throw new Error(`Post not found: ${argument}`);
   console.log(JSON.stringify(rows[0], null, 2));
 } else if (command === "delete") {
   if (!argument || confirmation !== "--yes") {
@@ -70,6 +88,7 @@ if (command === "list") {
   pnpm post list
   pnpm post get <slug>
   pnpm post upsert <markdown-file>
+  pnpm post category <slug> "<category/path>"
   pnpm post delete <slug> --yes`);
   process.exitCode = command ? 1 : 0;
 }

@@ -1,8 +1,14 @@
 ---
 import type { BlogPost } from "../lib/posts";
 
+import {
+  buildCategoryTree,
+  categoryHref,
+  filterPostsByCategory,
+} from "../lib/categories";
 import { renderPostMarkdown } from "../lib/markdown";
 import { initialVisibleCount, postHref } from "../lib/posts";
+import CategorySidebar from "./CategorySidebar.astro";
 import NewPostComposer from "./NewPostComposer.astro";
 import TableOfContents from "./TableOfContents.astro";
 
@@ -13,6 +19,7 @@ interface Props {
   composerSubmissionId?: string;
   composerOpen?: boolean;
   withHomeActions?: boolean;
+  selectedCategory?: string;
 }
 
 const {
@@ -22,40 +29,47 @@ const {
   composerSubmissionId,
   composerOpen = false,
   withHomeActions = false,
+  selectedCategory,
 } = Astro.props;
+const categoryTree = buildCategoryTree(posts);
+const visiblePosts = filterPostsByCategory(posts, selectedCategory);
+const categoryPaths = [...new Set(posts.map((post) => post.data.category))].sort(
+  (left, right) => left.localeCompare(right, "ko"),
+);
 const pageSize = 5;
 const activeIndex = activeSlug
-  ? posts.findIndex((post) => post.id === activeSlug)
+  ? visiblePosts.findIndex((post) => post.id === activeSlug)
   : -1;
 const visibleCount = Math.min(
-  posts.length,
+  visiblePosts.length,
   initialVisibleCount(activeIndex, pageSize),
 );
 const renderedPosts = await Promise.all(
-  posts.map(async (post) => ({
+  visiblePosts.map(async (post) => ({
     post,
     ...(await renderPostMarkdown(post.bodyMarkdown)),
   })),
 );
-const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
-  year: "numeric",
-  month: "long",
-  day: "numeric",
-  timeZone: "UTC",
-});
 ---
 
-<main
-  class:list={["feed", { "feed--with-home-actions": withHomeActions }]}
-  data-feed
-  data-active-slug={activeSlug ?? ""}
-  data-page-size={pageSize}
->
+<div class:list={["blog-shell", { "blog-shell--with-home-actions": withHomeActions }]}>
+  <CategorySidebar
+    tree={categoryTree}
+    postCount={posts.length}
+    selectedCategory={selectedCategory}
+  />
+  <main
+    class:list={["feed", { "feed--with-home-actions": withHomeActions }]}
+    data-feed
+    data-active-slug={activeSlug ?? ""}
+    data-page-size={pageSize}
+  >
   {composerCsrfToken && composerSubmissionId && (
     <NewPostComposer
       csrfToken={composerCsrfToken}
       submissionId={composerSubmissionId}
       open={composerOpen}
+      categoryPaths={categoryPaths}
     />
   )}
   {
@@ -77,9 +91,9 @@ const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
         )}
 
         <header class="post-header">
-          <time datetime={post.data.publishedAt.toISOString()}>
-            {dateFormatter.format(post.data.publishedAt)}
-          </time>
+          <a class="post-category" href={categoryHref(post.data.category)}>
+            {post.data.category.replaceAll("/", " / ")}
+          </a>
           <h1>
             <a class="post-title-link" href={postHref(post.id)}>
               {post.data.title}
@@ -95,8 +109,13 @@ const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
     ))
   }
 
+  {renderedPosts.length === 0 && (
+    <p class="feed-empty">이 카테고리에는 아직 글이 없습니다.</p>
+  )}
+
   <div class="feed-sentinel" data-feed-sentinel aria-hidden="true"></div>
-</main>
+  </main>
+</div>
 
 <script>
   const feed = document.querySelector<HTMLElement>("[data-feed]");

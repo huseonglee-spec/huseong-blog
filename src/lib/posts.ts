@@ -7,6 +7,7 @@ export interface BlogPost {
     thumbnail?: string;
     thumbnailAlt?: string;
     draft: boolean;
+    category: string;
   };
   bodyMarkdown: string;
   updatedAt: Date;

@@ -4,9 +4,17 @@ import { randomUUID } from "node:crypto";
 import BlogFeed from "../components/BlogFeed.astro";
 import HomeActions from "../components/HomeActions.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
+import { normalizeCategoryPath } from "../lib/categories";
 import { getPublishedPosts } from "../lib/content";
 
 const posts = await getPublishedPosts();
+const categoryQuery = Astro.url.searchParams.get("category");
+let selectedCategory: string | undefined;
+try {
+  selectedCategory = categoryQuery ? normalizeCategoryPath(categoryQuery) : undefined;
+} catch {
+  return Astro.redirect("/");
+}
 const session = Astro.locals.adminSession;
 const composerOpen = Boolean(session) && Astro.url.searchParams.get("compose") === "1";
 const submissionId = session ? randomUUID() : undefined;
@@ -25,5 +33,6 @@ Astro.response.headers.set("Cache-Control", "no-store");
     composerSubmissionId={submissionId}
     composerOpen={composerOpen}
     withHomeActions
+    selectedCategory={selectedCategory}
   />
 </BaseLayout>

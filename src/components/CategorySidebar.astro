@@ -1,0 +1,27 @@
+---
+import type { CategoryNode } from "../lib/categories";
+import CategoryBranch from "./CategoryBranch.astro";
+
+interface Props {
+  tree: CategoryNode[];
+  postCount: number;
+  selectedCategory?: string;
+}
+
+const { tree, postCount, selectedCategory } = Astro.props;
+---
+
+<aside class="category-sidebar">
+  <nav class="category-tree" aria-label="글 카테고리">
+    <p class="category-tree__title">카테고리</p>
+    <a
+      class:list={["category-tree__all", { "is-active": !selectedCategory }]}
+      href="/"
+      aria-current={!selectedCategory ? "page" : undefined}
+    >
+      <span>전체 글</span>
+      <span class="category-tree__count">{postCount}</span>
+    </a>
+    <CategoryBranch nodes={tree} selectedCategory={selectedCategory} />
+  </nav>
+</aside>

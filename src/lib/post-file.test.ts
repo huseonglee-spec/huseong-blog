@@ -5,7 +5,7 @@ import { parsePostFile } from "./post-file";
 describe("parsePostFile", () => {
   it("validates frontmatter and returns a database-ready post", () => {
     const post = parsePostFile(
-      `---\ntitle: 격일로 달리기\npublishedAt: 2026-07-13T10:26:22-04:00\ndraft: false\n---\n\n본문`,
+      `---\ntitle: 격일로 달리기\npublishedAt: 2026-07-13T10:26:22-04:00\ncategory: 건강 / 운동\ndraft: false\n---\n\n본문`,
       "every-other-day-running.md",
     );
 
@@ -17,6 +17,7 @@ describe("parsePostFile", () => {
       thumbnail: null,
       thumbnailAlt: null,
       draft: false,
+      category: "건강/운동",
       bodyMarkdown: "본문",
     });
   });
@@ -28,5 +29,14 @@ describe("parsePostFile", () => {
     expect(() => parsePostFile("---\npublishedAt: 2026-07-13\n---\nbody", "valid.md")).toThrow(
       /title/i,
     );
+  });
+
+  it("category를 생략하면 기존 글의 분류를 보존할 수 있도록 undefined를 반환한다", () => {
+    const post = parsePostFile(
+      "---\ntitle: 기존 글 수정\n---\n\n수정된 본문",
+      "existing-post.md",
+    );
+
+    expect(post.category).toBeUndefined();
   });
 });

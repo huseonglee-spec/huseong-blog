@@ -3,9 +3,10 @@ interface Props {
   csrfToken: string;
   submissionId: string;
   open?: boolean;
+  categoryPaths?: string[];
 }
 
-const { csrfToken, submissionId, open = false } = Astro.props;
+const { csrfToken, submissionId, open = false, categoryPaths = [] } = Astro.props;
 ---
 
 <article
@@ -29,6 +30,21 @@ const { csrfToken, submissionId, open = false } = Astro.props;
       autocomplete="off"
       required
     />
+
+    <label class="visually-hidden" for="new-post-category">카테고리</label>
+    <input
+      class="new-post-category"
+      id="new-post-category"
+      name="category"
+      type="text"
+      maxlength="200"
+      list="post-category-options"
+      placeholder="카테고리 (예: 기술 / AI)"
+      autocomplete="off"
+    />
+    <datalist id="post-category-options">
+      {categoryPaths.map((path) => <option value={path} />)}
+    </datalist>
 
     <label class="visually-hidden" for="new-post-body">본문</label>
     <textarea
@@ -130,6 +146,7 @@ const { csrfToken, submissionId, open = false } = Astro.props;
     border: 0;
   }
   .new-post-title,
+  .new-post-category,
   .new-post-body {
     width: 100%;
     padding: 0;
@@ -140,6 +157,7 @@ const { csrfToken, submissionId, open = false } = Astro.props;
     font: inherit;
   }
   .new-post-title:focus-visible,
+  .new-post-category:focus-visible,
   .new-post-body:focus-visible {
     box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--link) 58%, transparent);
   }
@@ -150,6 +168,13 @@ const { csrfToken, submissionId, open = false } = Astro.props;
     line-height: 1.42;
     letter-spacing: -0.035em;
   }
+  .new-post-category {
+    margin: -1.3rem 0 2rem;
+    padding-bottom: 0.55rem;
+    border-bottom: 1px solid var(--line);
+    color: var(--ink-soft);
+    font-size: 0.82rem;
+  }
   .new-post-body {
     min-height: 42vh;
     resize: none;
@@ -157,6 +182,7 @@ const { csrfToken, submissionId, open = false } = Astro.props;
     line-height: 1.9;
   }
   .new-post-title::placeholder,
+  .new-post-category::placeholder,
   .new-post-body::placeholder { color: color-mix(in srgb, var(--ink-soft) 58%, transparent); }
   .new-post-footer {
     display: flex;

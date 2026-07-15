@@ -2,6 +2,8 @@ import path from "node:path";
 
 import matter from "gray-matter";
 
+import { normalizeCategoryPath } from "./categories";
+
 export interface WritablePost {
   slug: string;
   title: string;
@@ -10,6 +12,7 @@ export interface WritablePost {
   thumbnail: string | null;
   thumbnailAlt: string | null;
   draft: boolean;
+  category?: string;
   bodyMarkdown: string;
 }
 
@@ -55,6 +58,10 @@ export function parsePostFile(source: string, fileName: string): WritablePost {
     thumbnail: optionalString(parsed.data.thumbnail, "thumbnail"),
     thumbnailAlt: optionalString(parsed.data.thumbnailAlt, "thumbnailAlt"),
     draft: parsed.data.draft ?? false,
+    category:
+      parsed.data.category === undefined
+        ? undefined
+        : normalizeCategoryPath(parsed.data.category),
     bodyMarkdown,
   };
 }

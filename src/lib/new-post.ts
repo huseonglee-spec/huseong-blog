@@ -1,4 +1,5 @@
 import type { WritablePost } from "./post-file";
+import { normalizeCategoryPath } from "./categories";
 
 const MAX_TITLE_LENGTH = 200;
 const MAX_BODY_BYTES = 512 * 1024;
@@ -16,6 +17,7 @@ export function parseSubmissionId(value: unknown): string {
 export interface NewPostInput {
   title?: unknown;
   bodyMarkdown?: unknown;
+  category?: unknown;
 }
 
 export function parseNewPostInput(
@@ -56,6 +58,7 @@ export function parseNewPostInput(
     thumbnail: null,
     thumbnailAlt: null,
     draft: false,
+    category: normalizeCategoryPath(input.category),
     bodyMarkdown,
   };
 }

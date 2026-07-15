@@ -46,6 +46,7 @@ pnpm post get every-other-day-running
 title: "글 제목"
 subtitle: "선택 사항"
 publishedAt: 2026-07-13T10:26:22-04:00
+category: "생각/글쓰기"
 thumbnail: "https://example.com/image.jpg"
 thumbnailAlt: "이미지 설명"
 draft: false
@@ -60,7 +61,13 @@ DB에 추가하거나 같은 slug의 글을 수정합니다.
 pnpm post upsert /path/to/post-slug.md
 ```
 
-`publishedAt`을 생략하면 게시 명령을 실행한 현재 시각이 사용됩니다. `subtitle`, `thumbnail`, `thumbnailAlt`, `draft`는 선택 사항입니다. 기본값은 공개 글(`draft: false`)입니다.
+`publishedAt`을 생략하면 게시 명령을 실행한 현재 시각이 사용됩니다. `category`는 `/`로 계층을 표현하며, 새 글에서 생략하면 `미분류`가 됩니다. 기존 글을 다시 upsert할 때 `category`를 생략하면 현재 분류를 보존합니다. `subtitle`, `thumbnail`, `thumbnailAlt`, `draft`는 선택 사항입니다. 기본값은 공개 글(`draft: false`)입니다.
+
+기존 글의 카테고리만 변경할 수도 있습니다.
+
+```bash
+pnpm post category post-slug "생각/글쓰기"
+```
 
 위 명령이 성공하면 Vercel 또는 Git 배포 없이 `https://huseong.com/posts/post-slug/`과 홈 피드에 반영됩니다.
 
@@ -119,6 +126,7 @@ pnpm admin:password
 ```bash
 pnpm test
 pnpm build
+pnpm db:migrate
 pnpm dlx vercel@latest deploy --prod --yes --scope huseongs-projects
 ```
 

@@ -23,6 +23,7 @@ await sql`
     thumbnail text,
     thumbnail_alt text,
     draft boolean NOT NULL DEFAULT false,
+    category_path text NOT NULL DEFAULT '미분류',
     submission_id uuid,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
@@ -32,7 +33,27 @@ await sql`
 await sql`
   ALTER TABLE posts
     DROP COLUMN IF EXISTS revision,
-    ADD COLUMN IF NOT EXISTS submission_id uuid
+    ADD COLUMN IF NOT EXISTS submission_id uuid,
+    ADD COLUMN IF NOT EXISTS category_path text NOT NULL DEFAULT '미분류'
+`;
+
+await sql`
+  ALTER TABLE posts
+    DROP CONSTRAINT IF EXISTS posts_category_path_valid,
+    ADD CONSTRAINT posts_category_path_valid CHECK (
+      length(btrim(category_path)) BETWEEN 1 AND 200
+      AND category_path = btrim(category_path)
+      AND category_path !~ '(^/|/$|//)'
+      AND category_path !~ '[[:cntrl:]]'
+      AND category_path !~ '(^|/)[^/]{41,}(/|$)'
+      AND array_length(string_to_array(category_path, '/'), 1) <= 5
+    )
+`;
+
+await sql`
+  CREATE INDEX IF NOT EXISTS posts_category_path_idx
+      ON posts (category_path, published_at DESC)
+   WHERE draft = false
 `;
 
 await sql`

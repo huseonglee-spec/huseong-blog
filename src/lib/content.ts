@@ -11,6 +11,7 @@ interface PostRow {
   thumbnail: string | null;
   thumbnail_alt: string | null;
   draft: boolean;
+  category_path: string;
   body_markdown: string;
   updated_at: string | Date;
 }
@@ -31,6 +32,7 @@ function mapRow(row: PostRow): BlogPost {
       thumbnail: row.thumbnail ?? undefined,
       thumbnailAlt: row.thumbnail_alt ?? undefined,
       draft: row.draft,
+      category: row.category_path,
     },
     bodyMarkdown: row.body_markdown,
     updatedAt: new Date(row.updated_at),
@@ -41,7 +43,7 @@ export async function getPublishedPosts(): Promise<BlogPost[]> {
   const sql = neon(databaseUrl());
   const rows = await sql`
     SELECT slug, title, subtitle, published_at, thumbnail, thumbnail_alt,
-           draft, body_markdown, updated_at
+           draft, category_path, body_markdown, updated_at
       FROM posts
      WHERE draft = false
        AND published_at <= now()

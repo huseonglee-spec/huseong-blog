@@ -13,10 +13,11 @@ export async function createPublishedPost(
   const inserted = await sql`
     INSERT INTO posts (
       slug, title, subtitle, published_at, thumbnail, thumbnail_alt,
-      draft, body_markdown, submission_id
+      draft, category_path, body_markdown, submission_id
     ) VALUES (
       ${post.slug}, ${post.title}, ${post.subtitle}, ${post.publishedAt.toISOString()},
-      ${post.thumbnail}, ${post.thumbnailAlt}, false, ${post.bodyMarkdown},
+      ${post.thumbnail}, ${post.thumbnailAlt}, false,
+      ${post.category ?? "미분류"}, ${post.bodyMarkdown},
       ${submissionId}
     )
     ON CONFLICT DO NOTHING
