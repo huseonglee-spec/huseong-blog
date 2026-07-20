@@ -1,0 +1,230 @@
+---
+import type { BlogPost } from "../lib/posts";
+
+interface Props {
+  post: BlogPost;
+  csrfToken: string;
+}
+
+const { post, csrfToken } = Astro.props;
+const endpoint = `/api/posts/${encodeURIComponent(post.id)}/`;
+---
+
+<form
+  class="edit-post-form"
+  id={`edit-post-${post.id}`}
+  action={endpoint}
+  data-edit-post-form
+  hidden
+>
+  <input type="hidden" name="csrfToken" value={csrfToken} />
+
+  <label class="visually-hidden" for={`edit-post-title-${post.id}`}>제목</label>
+  <input
+    class="edit-post-title"
+    id={`edit-post-title-${post.id}`}
+    name="title"
+    type="text"
+    maxlength="200"
+    value={post.data.title}
+    autocomplete="off"
+    required
+  />
+
+  <label class="visually-hidden" for={`edit-post-category-${post.id}`}>카테고리</label>
+  <input
+    class="edit-post-category"
+    id={`edit-post-category-${post.id}`}
+    name="category"
+    type="text"
+    maxlength="200"
+    value={post.data.category}
+    autocomplete="off"
+  />
+
+  <label class="visually-hidden" for={`edit-post-body-${post.id}`}>본문</label>
+  <textarea
+    class="edit-post-body"
+    id={`edit-post-body-${post.id}`}
+    name="bodyMarkdown"
+    maxlength="170000"
+    required
+  >{post.bodyMarkdown}</textarea>
+
+  <footer class="edit-post-footer">
+    <p class="edit-post-status" data-edit-post-status aria-live="polite"></p>
+    <div class="edit-post-buttons">
+      <button type="button" class="text-button" data-cancel-edit>취소</button>
+      <button type="submit" class="save-button">저장</button>
+    </div>
+  </footer>
+</form>
+
+<script>
+  document.querySelectorAll<HTMLFormElement>("[data-edit-post-form]").forEach((form) => {
+    if (form.dataset.ready === "true") return;
+    form.dataset.ready = "true";
+
+    const article = form.closest<HTMLElement>("[data-post]");
+    const display = article?.querySelector<HTMLElement>("[data-post-display]");
+    const trigger = article?.querySelector<HTMLButtonElement>("[data-edit-post]");
+    const title = form.querySelector<HTMLInputElement>("[name=title]");
+    const body = form.querySelector<HTMLTextAreaElement>("[name=bodyMarkdown]");
+    const status = form.querySelector<HTMLElement>("[data-edit-post-status]");
+    const submitButton = form.querySelector<HTMLButtonElement>("[type=submit]");
+    const cancelButton = form.querySelector<HTMLButtonElement>("[data-cancel-edit]");
+    let submitting = false;
+
+    const resizeBody = () => {
+      if (!body || form.hidden) return;
+      body.style.height = "auto";
+      body.style.height = `${Math.max(body.scrollHeight, window.innerHeight * 0.5)}px`;
+    };
+
+    trigger?.addEventListener("click", () => {
+      if (!display) return;
+      display.hidden = true;
+      form.hidden = false;
+      trigger.setAttribute("aria-expanded", "true");
+      resizeBody();
+      title?.focus();
+    });
+
+    body?.addEventListener("input", resizeBody);
+
+    cancelButton?.addEventListener("click", () => {
+      if (submitting || !display) return;
+      form.hidden = true;
+      display.hidden = false;
+      trigger?.setAttribute("aria-expanded", "false");
+      trigger?.focus();
+    });
+
+    form.addEventListener("keydown", (event) => {
+      if (!submitting && (event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault();
+        form.requestSubmit();
+      }
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (submitting || !submitButton || !status) return;
+
+      submitting = true;
+      submitButton.disabled = true;
+      if (cancelButton) cancelButton.disabled = true;
+      status.dataset.error = "false";
+      status.textContent = "저장 중…";
+
+      try {
+        const response = await fetch(form.action, {
+          method: "PATCH",
+          body: new FormData(form),
+          headers: { Accept: "application/json" },
+        });
+        const result = await response.json() as { error?: string; location?: string };
+        if (!response.ok || !result.location) {
+          throw new Error(result.error ?? "글을 수정하지 못했습니다.");
+        }
+        const target = new URL(result.location, window.location.href);
+        if (target.pathname === window.location.pathname) {
+          history.replaceState(null, "", `${target.pathname}${target.search}${target.hash}`);
+          window.location.reload();
+        } else {
+          window.location.assign(target.href);
+        }
+      } catch (error) {
+        status.dataset.error = "true";
+        status.textContent = error instanceof Error ? error.message : "글을 수정하지 못했습니다.";
+        submitting = false;
+        submitButton.disabled = false;
+        if (cancelButton) cancelButton.disabled = false;
+      }
+    });
+  });
+</script>
+
+<style>
+  .edit-post-form { display: grid; }
+  .edit-post-form[hidden] { display: none; }
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .edit-post-title,
+  .edit-post-category,
+  .edit-post-body {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    color: var(--ink);
+    background: transparent;
+    font: inherit;
+  }
+  .edit-post-title:focus-visible,
+  .edit-post-category:focus-visible,
+  .edit-post-body:focus-visible {
+    box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--link) 58%, transparent);
+  }
+  .edit-post-title {
+    margin-bottom: 2.4rem;
+    font-size: clamp(1.72rem, 5vw, 2.55rem);
+    font-weight: 650;
+    line-height: 1.42;
+    letter-spacing: -0.035em;
+  }
+  .edit-post-category {
+    margin: -1.3rem 0 2rem;
+    padding-bottom: 0.55rem;
+    border-bottom: 1px solid var(--line);
+    color: var(--ink-soft);
+    font-size: 0.82rem;
+  }
+  .edit-post-body {
+    min-height: 50vh;
+    resize: none;
+    font-size: clamp(1rem, 2.15vw, 1.08rem);
+    line-height: 1.9;
+  }
+  .edit-post-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 2.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+  .edit-post-status {
+    min-height: 1.5em;
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 0.8rem;
+  }
+  .edit-post-status[data-error="true"] { color: #9a3e2e; }
+  .edit-post-buttons { display: flex; align-items: center; gap: 0.8rem; }
+  .edit-post-buttons button {
+    padding: 0.45rem 0.85rem;
+    border: 1px solid var(--ink);
+    border-radius: 2px;
+    font: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+  .text-button { color: var(--ink); background: transparent; }
+  .save-button { color: var(--sheet); background: var(--ink); }
+  .edit-post-buttons button:disabled { cursor: wait; opacity: 0.6; }
+
+  @media (max-width: 560px) {
+    .edit-post-footer { align-items: flex-end; flex-direction: column; }
+  }
+</style>

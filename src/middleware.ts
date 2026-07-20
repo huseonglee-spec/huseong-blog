@@ -2,14 +2,14 @@ import { defineMiddleware } from "astro:middleware";
 
 import {
   adminRouteKind,
+  needsAdminSession,
   sessionCookieName,
 } from "./lib/server/auth-core";
 import { getAdminSession } from "./lib/server/auth";
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const routeKind = adminRouteKind(context.url.pathname);
-  const needsSession = routeKind !== "none" || context.url.pathname === "/";
-  if (!needsSession) return next();
+  if (!needsAdminSession(context.url.pathname)) return next();
 
   const secure = context.url.protocol === "https:";
   const cookieName = sessionCookieName(secure);

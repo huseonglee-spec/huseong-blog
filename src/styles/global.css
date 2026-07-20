@@ -169,10 +169,34 @@ a:hover {
 
 .post-category {
   display: inline-block;
-  margin-bottom: 0.65rem;
   color: var(--ink-soft);
   font-size: 0.72rem;
   text-decoration: none;
+}
+
+.post-admin-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.65rem;
+}
+
+.post-edit-button {
+  padding: 0;
+  border: 0;
+  color: var(--ink-soft);
+  background: transparent;
+  font: inherit;
+  font-size: 0.72rem;
+  text-decoration: underline;
+  text-decoration-thickness: 0.06em;
+  text-underline-offset: 0.18em;
+  cursor: pointer;
+}
+
+.post-edit-button:hover {
+  color: var(--ink);
 }
 
 .post-category:hover {
@@ -201,6 +225,7 @@ a:hover {
 
 .post-title-link:focus-visible,
 .post-category:focus-visible,
+.post-edit-button:focus-visible,
 .category-tree a:focus-visible,
 .post-body a:focus-visible,
 .table-of-contents a:focus-visible {

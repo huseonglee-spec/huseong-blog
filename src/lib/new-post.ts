@@ -1,5 +1,6 @@
 import type { WritablePost } from "./post-file";
 import { normalizeCategoryPath } from "./categories";
+import { normalizePostBodyMarkdown } from "./edit-post";
 
 const MAX_TITLE_LENGTH = 200;
 const MAX_BODY_BYTES = 512 * 1024;
@@ -36,7 +37,7 @@ export function parseNewPostInput(
   if (typeof input.bodyMarkdown !== "string" || !input.bodyMarkdown.trim()) {
     throw new TypeError("본문을 입력해 주세요.");
   }
-  const bodyMarkdown = input.bodyMarkdown.trim();
+  const bodyMarkdown = normalizePostBodyMarkdown(input.bodyMarkdown);
   if (new TextEncoder().encode(bodyMarkdown).byteLength > MAX_BODY_BYTES) {
     throw new TypeError("본문은 512 KiB 이하여야 합니다.");
   }

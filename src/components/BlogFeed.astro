@@ -9,6 +9,7 @@ import {
 import { renderPostMarkdown } from "../lib/markdown";
 import { initialVisibleCount, postHref } from "../lib/posts";
 import CategorySidebar from "./CategorySidebar.astro";
+import EditPostForm from "./EditPostForm.astro";
 import NewPostComposer from "./NewPostComposer.astro";
 import TableOfContents from "./TableOfContents.astro";
 
@@ -18,6 +19,7 @@ interface Props {
   composerCsrfToken?: string;
   composerSubmissionId?: string;
   composerOpen?: boolean;
+  editCsrfToken?: string;
   withHomeActions?: boolean;
   selectedCategory?: string;
 }
@@ -28,6 +30,7 @@ const {
   composerCsrfToken,
   composerSubmissionId,
   composerOpen = false,
+  editCsrfToken,
   withHomeActions = false,
   selectedCategory,
 } = Astro.props;
@@ -80,6 +83,7 @@ const renderedPosts = await Promise.all(
         data-post={post.id}
         hidden={index >= visibleCount}
       >
+        <div data-post-display>
         {post.data.thumbnail && (
           <figure class="post-thumbnail">
             <img
@@ -91,9 +95,20 @@ const renderedPosts = await Promise.all(
         )}
 
         <header class="post-header">
-          <a class="post-category" href={categoryHref(post.data.category)}>
-            {post.data.category.replaceAll("/", " / ")}
-          </a>
+          <div class="post-admin-row">
+            <a class="post-category" href={categoryHref(post.data.category)}>
+              {post.data.category.replaceAll("/", " / ")}
+            </a>
+            {editCsrfToken && (
+              <button
+                type="button"
+                class="post-edit-button"
+                data-edit-post
+                aria-controls={`edit-post-${post.id}`}
+                aria-expanded="false"
+              >수정</button>
+            )}
+          </div>
           <h1>
             <a class="post-title-link" href={postHref(post.id)}>
               {post.data.title}
@@ -105,6 +120,8 @@ const renderedPosts = await Promise.all(
         <TableOfContents headings={headings} />
 
         <div class="post-body" set:html={html} />
+        </div>
+        {editCsrfToken && <EditPostForm post={post} csrfToken={editCsrfToken} />}
       </article>
     ))
   }

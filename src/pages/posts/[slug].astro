@@ -7,6 +7,7 @@ import { postHref } from "../../lib/posts";
 const activeSlug = Astro.params.slug;
 const posts = await getPublishedPosts();
 const activePost = posts.find((post) => post.id === activeSlug);
+const session = Astro.locals.adminSession;
 
 if (!activePost) {
   return Astro.redirect("/404/");
@@ -26,5 +27,6 @@ const description = activePost.data.subtitle ?? activePost.data.title;
     posts={posts}
     activeSlug={activePost.id}
     selectedCategory={activePost.data.category}
+    editCsrfToken={session?.csrfToken}
   />
 </BaseLayout>

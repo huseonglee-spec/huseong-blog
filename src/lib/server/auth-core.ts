@@ -24,8 +24,23 @@ export function adminRouteKind(pathname: string): AdminRouteKind {
   const path = withoutTrailingSlash(pathname);
   if (path === "/admin/login" || path === "/api/admin/login") return "public";
   if (path === "/admin") return "page";
-  if (path === "/api/admin/logout" || path === "/api/posts") return "api";
+  if (
+    path === "/api/admin/logout" ||
+    path === "/api/posts" ||
+    /^\/api\/posts\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(path)
+  ) {
+    return "api";
+  }
   return "none";
+}
+
+export function needsAdminSession(pathname: string): boolean {
+  const path = withoutTrailingSlash(pathname);
+  return (
+    adminRouteKind(path) !== "none" ||
+    path === "/" ||
+    /^\/posts\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(path)
+  );
 }
 
 export function safeReturnPath(value: unknown, fallback: string): string {

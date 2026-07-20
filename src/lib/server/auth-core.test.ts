@@ -5,6 +5,7 @@ import {
   hashToken,
   isAllowedOrigin,
   loginRetryAfter,
+  needsAdminSession,
   safeReturnPath,
   sessionCookieOptions,
   tokensMatch,
@@ -17,9 +18,18 @@ describe("administrator authentication helpers", () => {
     expect(adminRouteKind("/admin/")).toBe("page");
     expect(adminRouteKind("/api/admin/logout/")).toBe("api");
     expect(adminRouteKind("/api/posts/")).toBe("api");
+    expect(adminRouteKind("/api/posts/example/")).toBe("api");
+    expect(adminRouteKind("/api/posts/example/delete/")).toBe("none");
     expect(adminRouteKind("/admin/posts/new/")).toBe("none");
     expect(adminRouteKind("/api/admin/posts/")).toBe("none");
     expect(adminRouteKind("/posts/example/")).toBe("none");
+  });
+
+  it("hydrates sessions only where administrator controls can appear", () => {
+    expect(needsAdminSession("/")).toBe(true);
+    expect(needsAdminSession("/posts/example/")).toBe(true);
+    expect(needsAdminSession("/api/posts/example/")).toBe(true);
+    expect(needsAdminSession("/sitemap.xml")).toBe(false);
   });
 
   it("requires an exact same-origin value", () => {
