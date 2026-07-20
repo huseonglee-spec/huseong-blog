@@ -5,6 +5,7 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeSlug from "rehype-slug";
 import rehypeStringify from "rehype-stringify";
+import remarkBreaks from "remark-breaks";
 import remarkDirective from "remark-directive";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
@@ -121,6 +122,7 @@ export async function renderPostMarkdown(
   const headings: PostHeading[] = [];
   const file = await unified()
     .use(remarkParse)
+    .use(remarkBreaks)
     .use(remarkDirective)
     .use(mediaDirectives)
     .use(remarkRehype, { allowDangerousHtml: true })

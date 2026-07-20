@@ -3,6 +3,12 @@ import { describe, expect, it } from "vitest";
 import { renderPostMarkdown } from "./markdown";
 
 describe("renderPostMarkdown", () => {
+  it("에디터에서 입력한 단일 개행을 화면에서도 줄바꿈으로 표시한다", async () => {
+    const result = await renderPostMarkdown("첫 줄\n둘째 줄");
+
+    expect(result.html).toContain("첫 줄<br>\n둘째 줄");
+  });
+
   it("renders rich Markdown and collects H1-H3 headings for the table of contents", async () => {
     const result = await renderPostMarkdown(`
 # 첫 제목
