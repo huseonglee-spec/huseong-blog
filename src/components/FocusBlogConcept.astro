@@ -227,15 +227,17 @@ const initialCategory = posts[0]?.data.category ?? "";
         </aside>
       )}
 
-      <footer class="reader-dock" aria-live="polite">
-        <p><strong data-current-index>01</strong><span>/</span><span data-filtered-total>{String(renderedPosts.length).padStart(2, "0")}</span></p>
-        <div class="reader-progress" aria-hidden="true"><span data-progress style={`--progress:${1 / renderedPosts.length}`} /></div>
-        {!isActualPreview && <p data-current-title>{renderedPosts[0].post.data.title}</p>}
-        <div class="reader-buttons">
-          <button type="button" aria-label="이전 글" data-previous-post disabled>←</button>
-          <button type="button" aria-label="다음 글" data-next-post>→</button>
-        </div>
-      </footer>
+      {!isActualPreview && (
+        <footer class="reader-dock" aria-live="polite">
+          <p><strong data-current-index>01</strong><span>/</span><span data-filtered-total>{String(renderedPosts.length).padStart(2, "0")}</span></p>
+          <div class="reader-progress" aria-hidden="true"><span data-progress style={`--progress:${1 / renderedPosts.length}`} /></div>
+          <p data-current-title>{renderedPosts[0].post.data.title}</p>
+          <div class="reader-buttons">
+            <button type="button" aria-label="이전 글" data-previous-post disabled>←</button>
+            <button type="button" aria-label="다음 글" data-next-post>→</button>
+          </div>
+        </footer>
+      )}
     </div>
   ) : (
     <p class="empty-blog">아직 보여드릴 글이 없습니다.</p>

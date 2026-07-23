@@ -65,6 +65,7 @@ describe("FocusBlogConcept", () => {
     expect(source).toContain('class="actual-mobile-controls"');
     expect(source).toContain('aria-expanded="false"');
     expect(source).not.toContain("candidate === group && willExpand");
+    expect(source).toContain('!isActualPreview && (\n        <footer class="reader-dock"');
   });
 
   it("다섯 변주와 모바일 레이아웃을 각각 정의한다", async () => {
