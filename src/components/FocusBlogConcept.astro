@@ -63,36 +63,35 @@ const initialCategory = posts[0]?.data.category ?? "";
   data-variation={variation}
   data-post-count={renderedPosts.length}
 >
-  <header class="focus-topbar">
-    <a class="focus-brand" href="/">
-      <strong>huseong.com</strong>
-      <span>이후성의 생각과 경험</span>
-    </a>
+  {!isActualPreview ? (
+    <header class="focus-topbar">
+      <a class="focus-brand" href="/">
+        <strong>huseong.com</strong>
+        <span>이후성의 생각과 경험</span>
+      </a>
 
-    <nav class="top-categories" aria-label="글 카테고리">
-      <button type="button" data-category-filter="" aria-pressed="true">
-        모든 글 <sup>{posts.length}</sup>
-      </button>
-      {categoryDirectory.map(({ category, segments, count }) => (
-        <button type="button" data-category-filter={category} aria-pressed="false" title={category}>
-          {segments.at(-1)} <sup>{count}</sup>
+      <nav class="top-categories" aria-label="글 카테고리">
+        <button type="button" data-category-filter="" aria-pressed="true">
+          모든 글 <sup>{posts.length}</sup>
         </button>
-      ))}
+        {categoryDirectory.map(({ category, segments, count }) => (
+          <button type="button" data-category-filter={category} aria-pressed="false" title={category}>
+            {segments.at(-1)} <sup>{count}</sup>
+          </button>
+        ))}
+      </nav>
+
+      <div class="focus-utility">
+        <span>{info.number} / FOCUS VARIATION</span>
+        <a href="/design-lab/">다른 시안</a>
+      </div>
+    </header>
+  ) : (
+    <nav class="actual-mobile-controls" aria-label="모바일 메뉴">
+      <button type="button" class="mobile-archive-toggle" data-mobile-archive-toggle aria-expanded="false">글 탐색</button>
+      <a href="/admin/login/">로그인</a>
     </nav>
-
-    <div class="focus-utility">
-      {isActualPreview ? (
-        <button type="button" class="mobile-archive-toggle" data-mobile-archive-toggle aria-expanded="false">
-          글 탐색
-        </button>
-      ) : (
-        <>
-          <span>{info.number} / FOCUS VARIATION</span>
-          <a href="/design-lab/">다른 시안</a>
-        </>
-      )}
-    </div>
-  </header>
+  )}
 
   {renderedPosts.length > 0 ? (
     <div class="focus-shell">
@@ -148,7 +147,9 @@ const initialCategory = posts[0]?.data.category ?? "";
           </nav>
         )}
 
-        {!isActualPreview && (
+        {isActualPreview ? (
+          <a class="sidebar-login" href="/admin/login/">로그인</a>
+        ) : (
           <footer>
             <span>현재 분류</span>
             <strong data-active-category>모든 글</strong>
@@ -438,7 +439,10 @@ const initialCategory = posts[0]?.data.category ?? "";
   .focus-utility { display:flex; align-items:center; justify-content:flex-end; gap:.8rem; padding-inline:24px; font-size:.52rem; }
   .focus-utility span { color:var(--muted); }
   .focus-utility a { color:inherit; text-underline-offset:.25em; }
+  .actual-mobile-controls { display:none; }
   .mobile-archive-toggle { display:none; border:0; color:var(--ink); background:transparent; font:inherit; font-size:.72rem; cursor:pointer; }
+  .sidebar-login { align-self:end; padding-top:.9rem; border-top:1px solid var(--line); color:var(--muted); font-size:.72rem; text-decoration:none; }
+  .sidebar-login:hover { color:var(--ink); }
 
   .focus-shell { min-height:calc(100svh - var(--topbar)); }
   .category-rail,
@@ -523,8 +527,8 @@ const initialCategory = posts[0]?.data.category ?? "";
   .focus-blog[data-variation="focus-column"] .post-heading h1 { max-width:9em; font-size:clamp(3.4rem,7vw,6.8rem); }
 
   /* 03 — 카테고리와 글 목록을 한쪽 서가에 모은 인덱스형 */
-  .focus-blog[data-variation="focus-index"] { --left-rail:300px; --right-rail:0px; --paper:#f7f3e9; --paper-side:#ece5d7; }
-  .focus-blog[data-variation="focus-index"] .category-rail { grid-template-rows:auto minmax(0,1fr); padding-inline:22px; }
+  .focus-blog[data-variation="focus-index"] { --topbar:0px; --left-rail:300px; --right-rail:0px; --paper:#f7f3e9; --paper-side:#ece5d7; }
+  .focus-blog[data-variation="focus-index"] .category-rail { grid-template-rows:auto minmax(0,1fr) auto; padding-inline:22px; }
   .focus-blog[data-variation="focus-index"] .post-rail { display:none; }
   .focus-blog[data-variation="focus-index"] .focus-reader { margin:0; }
   .focus-blog[data-variation="focus-index"] .variation-intro { left:calc(50% - 310px); }
@@ -629,13 +633,12 @@ const initialCategory = posts[0]?.data.category ?? "";
     .focus-blog[data-variation="focus-column"] .post-meta { justify-content:center; }
     .focus-blog[data-variation="focus-column"] .post-meta span:last-child { display:none; }
 
-    .focus-blog[data-variation="focus-index"] { --topbar:60px; }
-    .focus-blog[data-variation="focus-index"] .focus-topbar { grid-template-columns:1fr auto; grid-template-rows:1fr; height:var(--topbar); padding:8px 16px; }
-    .focus-blog[data-variation="focus-index"] .focus-brand { grid-column:1; grid-row:1; }
-    .focus-blog[data-variation="focus-index"] .top-categories { display:none; }
-    .focus-blog[data-variation="focus-index"] .focus-utility { grid-column:2; grid-row:1; }
-    .focus-blog[data-variation="focus-index"] .mobile-archive-toggle { display:block; padding:.45rem .2rem; }
-    .focus-blog[data-variation="focus-index"] .category-rail { z-index:45; top:var(--topbar); display:grid; width:min(330px,88vw); padding:26px 20px 28px; box-shadow:18px 0 40px rgba(57,45,30,.14); transform:translateX(-105%); transition:transform .24s cubic-bezier(.2,.75,.2,1); }
+    .focus-blog[data-variation="focus-index"] { --topbar:0px; }
+    .focus-blog[data-variation="focus-index"] .actual-mobile-controls { position:fixed; z-index:50; top:12px; right:14px; display:flex; gap:.35rem; }
+    .focus-blog[data-variation="focus-index"] .actual-mobile-controls button,
+    .focus-blog[data-variation="focus-index"] .actual-mobile-controls a { display:block; padding:.5rem .65rem; border:1px solid var(--line); border-radius:999px; color:var(--ink); background:color-mix(in srgb,var(--paper) 90%,transparent); font:inherit; font-size:.68rem; text-decoration:none; backdrop-filter:blur(12px); }
+    .focus-blog[data-variation="focus-index"] .mobile-archive-toggle { cursor:pointer; }
+    .focus-blog[data-variation="focus-index"] .category-rail { z-index:45; top:0; display:grid; width:min(330px,88vw); padding:70px 20px 28px; box-shadow:18px 0 40px rgba(57,45,30,.14); transform:translateX(-105%); transition:transform .24s cubic-bezier(.2,.75,.2,1); }
     .focus-blog[data-variation="focus-index"][data-archive-open="true"] .category-rail { transform:translateX(0); }
     .focus-blog[data-variation="focus-index"] .category-accordion { overflow:auto; }
     .focus-blog[data-variation="focus-index"] .focus-viewport { padding-top:72px; }

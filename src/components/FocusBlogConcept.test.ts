@@ -61,6 +61,8 @@ describe("FocusBlogConcept", () => {
     expect(source).toContain("data-category-toggle");
     expect(source).toContain("data-accordion-posts");
     expect(source).toContain("data-mobile-archive-toggle");
+    expect(source).toContain('class="sidebar-login" href="/admin/login/"');
+    expect(source).toContain('class="actual-mobile-controls"');
     expect(source).toContain('aria-expanded="false"');
     expect(source).not.toContain("candidate === group && willExpand");
   });
