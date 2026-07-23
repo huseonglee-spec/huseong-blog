@@ -16,6 +16,7 @@ function post(id: string, category: string): BlogPost {
       publishedAt: new Date("2026-07-14T00:00:00.000Z"),
       draft: false,
       category,
+      visibility: "public",
     },
     bodyMarkdown: "본문",
     updatedAt: new Date("2026-07-14T00:00:00.000Z"),

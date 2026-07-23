@@ -3,26 +3,56 @@ interface Props {
   authenticated: boolean;
   csrfToken?: string;
   composerOpen?: boolean;
+  activeLanguage?: "ko" | "en";
+  koreanHref?: string;
+  englishHref?: string;
 }
 
-const { authenticated, csrfToken = "", composerOpen = false } = Astro.props;
+const {
+  authenticated,
+  csrfToken = "",
+  composerOpen = false,
+  activeLanguage = "ko",
+  koreanHref = "/",
+  englishHref = "/?lang=en",
+} = Astro.props;
 ---
 
 <header class="home-actions" aria-label="계정 메뉴">
   {authenticated ? (
     <>
-      <a
-        class="home-action"
-        href="/?compose=1#new-post"
-        data-open-composer
-        aria-controls="new-post"
-        aria-expanded={composerOpen ? "true" : "false"}
-      >새 글 쓰기</a>
-      <form action="/api/admin/logout/" method="post">
-        <input type="hidden" name="csrfToken" value={csrfToken} />
-        <input type="hidden" name="returnTo" value="/" />
-        <button class="home-action" type="submit">로그아웃</button>
-      </form>
+      <nav class="language-switch" aria-label="블로그 언어">
+        <a
+          class="language-option"
+          href={koreanHref}
+          aria-current={activeLanguage === "ko" ? "page" : undefined}
+        ><span aria-hidden="true">🇰🇷</span><span>한국어</span></a>
+        <a
+          class="language-option"
+          href={englishHref}
+          aria-current={activeLanguage === "en" ? "page" : undefined}
+        ><span aria-hidden="true">🇺🇸</span><span>English</span></a>
+        <button class="language-option" type="button" title="준비 중" disabled>
+          <span aria-hidden="true">🇯🇵</span><span>日本語</span>
+        </button>
+        <button class="language-option" type="button" title="준비 중" disabled>
+          <span aria-hidden="true">🇨🇳</span><span>简体中文</span>
+        </button>
+      </nav>
+      <div class="account-actions">
+        <a
+          class="home-action"
+          href="/?compose=1#new-post"
+          data-open-composer
+          aria-controls="new-post"
+          aria-expanded={composerOpen ? "true" : "false"}
+        >새 글 쓰기</a>
+        <form action="/api/admin/logout/" method="post">
+          <input type="hidden" name="csrfToken" value={csrfToken} />
+          <input type="hidden" name="returnTo" value="/" />
+          <button class="home-action" type="submit">로그아웃</button>
+        </form>
+      </div>
     </>
   ) : (
     <a class="home-action" href="/admin/login/?next=%2F">로그인</a>
@@ -51,17 +81,61 @@ const { authenticated, csrfToken = "", composerOpen = false } = Astro.props;
     top: clamp(14px, 2.5vw, 28px);
     right: clamp(14px, 2.5vw, 30px);
     display: flex;
+    align-items: flex-end;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .home-actions form { margin: 0; }
+  .language-switch {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    max-width: calc(100vw - 28px);
+    padding: 0.35rem;
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--paper) 94%, transparent);
+    box-shadow: 0 5px 24px rgba(65, 52, 38, 0.1);
+    backdrop-filter: blur(12px);
+    font-size: 1rem;
+  }
+  .language-option {
+    display: inline-flex;
+    min-height: 2.55rem;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.72rem;
+    border: 0;
+    border-radius: 999px;
+    color: var(--ink-soft);
+    background: transparent;
+    font: inherit;
+    line-height: 1;
+    white-space: nowrap;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .language-option > span:first-child { font-size: 1.15em; }
+  .language-option[aria-current="page"] {
+    color: var(--sheet);
+    background: var(--ink);
+    font-weight: 700;
+  }
+  .language-option:not(:disabled):hover { color: var(--ink); background: var(--paper-deep); }
+  .language-option[aria-current="page"]:hover { color: var(--sheet); background: var(--link); }
+  .language-option:disabled { cursor: not-allowed; opacity: 0.42; }
+  .account-actions {
+    display: flex;
     align-items: center;
     gap: 0.9rem;
     padding: 0.35rem 0.65rem;
     border: 1px solid var(--line);
     border-radius: 999px;
-    background: color-mix(in srgb, var(--paper) 88%, transparent);
-    box-shadow: 0 4px 20px rgba(65, 52, 38, 0.08);
+    background: color-mix(in srgb, var(--paper) 90%, transparent);
     backdrop-filter: blur(10px);
   }
-
-  .home-actions form { margin: 0; }
   .home-action {
     display: inline;
     padding: 0;

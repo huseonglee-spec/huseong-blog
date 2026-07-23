@@ -24,6 +24,7 @@ await sql`
     thumbnail_alt text,
     draft boolean NOT NULL DEFAULT false,
     category_path text NOT NULL DEFAULT '미분류',
+    visibility text NOT NULL DEFAULT 'public',
     submission_id uuid,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
@@ -34,7 +35,20 @@ await sql`
   ALTER TABLE posts
     DROP COLUMN IF EXISTS revision,
     ADD COLUMN IF NOT EXISTS submission_id uuid,
-    ADD COLUMN IF NOT EXISTS category_path text NOT NULL DEFAULT '미분류'
+    ADD COLUMN IF NOT EXISTS category_path text NOT NULL DEFAULT '미분류',
+    ADD COLUMN IF NOT EXISTS visibility text DEFAULT 'public'
+`;
+
+await sql`UPDATE posts SET visibility = 'public' WHERE visibility IS NULL`;
+
+await sql`
+  ALTER TABLE posts
+    ALTER COLUMN visibility SET DEFAULT 'public',
+    ALTER COLUMN visibility SET NOT NULL,
+    DROP CONSTRAINT IF EXISTS posts_visibility_valid,
+    ADD CONSTRAINT posts_visibility_valid CHECK (
+      visibility IN ('public', 'friends', 'close_friends', 'private')
+    )
 `;
 
 await sql`
@@ -62,10 +76,12 @@ await sql`
    WHERE submission_id IS NOT NULL
 `;
 
+await sql`DROP INDEX IF EXISTS posts_public_feed_idx`;
+
 await sql`
-  CREATE INDEX IF NOT EXISTS posts_public_feed_idx
+  CREATE INDEX posts_public_feed_idx
       ON posts (published_at DESC, slug)
-   WHERE draft = false
+   WHERE draft = false AND visibility = 'public'
 `;
 
 await sql`

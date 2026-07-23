@@ -44,6 +44,7 @@ export const POST: APIRoute = async (context) => {
   const input = {
     title: form.get("title"),
     category: form.get("category"),
+    visibility: form.get("visibility"),
     bodyMarkdown: form.get("bodyMarkdown"),
   };
   const publishedAt = new Date();

@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 const componentUrl = new URL("./BlogFeed.astro", import.meta.url);
+const composerUrl = new URL("./NewPostComposer.astro", import.meta.url);
 const globalCssUrl = new URL("../styles/global.css", import.meta.url);
 
 describe("BlogFeed", () => {
@@ -19,5 +20,16 @@ describe("BlogFeed", () => {
       /grid-template-columns:\s*minmax\(170px, 1fr\)\s+minmax\(0, 760px\)\s+minmax\(170px, 1fr\)/,
     );
     expect(source).toMatch(/\.feed\s*\{[^}]*grid-column:\s*2;/s);
+  });
+
+  it("새 글과 기존 글 모두 공개 범위를 설정할 수 있다", async () => {
+    const [feedSource, composerSource] = await Promise.all([
+      readFile(componentUrl, "utf8"),
+      readFile(composerUrl, "utf8"),
+    ]);
+
+    expect(composerSource).toContain('name="visibility"');
+    expect(composerSource).toContain("POST_VISIBILITIES.map");
+    expect(feedSource).toContain("visibilityLabel(post.data.visibility)");
   });
 });

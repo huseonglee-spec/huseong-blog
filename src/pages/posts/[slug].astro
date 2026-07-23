@@ -1,13 +1,27 @@
 ---
 import BlogFeed from "../../components/BlogFeed.astro";
+import HomeActions from "../../components/HomeActions.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { getPublishedPosts } from "../../lib/content";
 import { postHref } from "../../lib/posts";
+import {
+  englishExpressionNotes,
+  translatePostsForAdmin,
+} from "../../lib/translation-prototype";
 
 const activeSlug = Astro.params.slug;
-const posts = await getPublishedPosts();
-const activePost = posts.find((post) => post.id === activeSlug);
 const session = Astro.locals.adminSession;
+const posts = await getPublishedPosts(Boolean(session));
+const requestedLanguage = Astro.url.searchParams.get("lang");
+const activeLanguage: "ko" | "en" = requestedLanguage === "en" && session ? "en" : "ko";
+const visiblePosts = activeLanguage === "en" ? translatePostsForAdmin(posts) : posts;
+const activePost = visiblePosts.find((post) => post.id === activeSlug);
+const languageHref = (language: "ko" | "en") => {
+  const target = new URL(Astro.url);
+  if (language === "en") target.searchParams.set("lang", "en");
+  else target.searchParams.delete("lang");
+  return `${target.pathname}${target.search}`;
+};
 
 if (!activePost) {
   return Astro.redirect("/404/");
@@ -23,10 +37,20 @@ const description = activePost.data.subtitle ?? activePost.data.title;
   canonicalPath={postHref(activePost.id)}
   type="article"
 >
+  <HomeActions
+    authenticated={Boolean(session)}
+    csrfToken={session?.csrfToken}
+    activeLanguage={activeLanguage}
+    koreanHref={languageHref("ko")}
+    englishHref={languageHref("en")}
+  />
   <BlogFeed
-    posts={posts}
+    posts={visiblePosts}
     activeSlug={activePost.id}
     selectedCategory={activePost.data.category}
-    editCsrfToken={session?.csrfToken}
+    editCsrfToken={activeLanguage === "ko" ? session?.csrfToken : undefined}
+    withHomeActions
+    translationLanguage={activeLanguage === "en" ? "en" : undefined}
+    translationNotes={activeLanguage === "en" ? englishExpressionNotes : undefined}
   />
 </BaseLayout>

@@ -5,6 +5,7 @@ import { neon } from "@neondatabase/serverless";
 
 import { normalizeCategoryPath } from "../src/lib/categories";
 import { parsePostFile } from "../src/lib/post-file";
+import { normalizePostVisibility } from "../src/lib/visibility";
 
 try {
   loadEnvFile(".env.local");
@@ -20,7 +21,7 @@ const [command, argument, confirmation] = process.argv.slice(2);
 
 if (command === "list") {
   const rows = await sql`
-    SELECT slug, title, category_path, published_at, draft, updated_at
+    SELECT slug, title, category_path, visibility, published_at, draft, updated_at
       FROM posts
      ORDER BY published_at DESC, slug ASC
   `;
@@ -29,7 +30,7 @@ if (command === "list") {
   if (!argument) throw new Error("Usage: pnpm post get <slug>");
   const rows = await sql`
     SELECT slug, title, subtitle, published_at, thumbnail, thumbnail_alt,
-           draft, category_path, body_markdown, created_at, updated_at
+           draft, category_path, visibility, body_markdown, created_at, updated_at
       FROM posts
      WHERE slug = ${argument}
   `;
@@ -40,14 +41,16 @@ if (command === "list") {
   const source = await readFile(argument, "utf8");
   const post = parsePostFile(source, argument);
   const category = post.category ?? null;
+  const visibility = post.visibility ?? null;
   const rows = await sql`
     INSERT INTO posts (
       slug, title, subtitle, published_at, thumbnail, thumbnail_alt,
-      draft, category_path, body_markdown
+      draft, category_path, visibility, body_markdown
     ) VALUES (
       ${post.slug}, ${post.title}, ${post.subtitle}, ${post.publishedAt.toISOString()},
       ${post.thumbnail}, ${post.thumbnailAlt}, ${post.draft},
-      COALESCE(${category}, '미분류'), ${post.bodyMarkdown}
+      COALESCE(${category}, '미분류'), COALESCE(${visibility}, 'public'),
+      ${post.bodyMarkdown}
     )
     ON CONFLICT (slug) DO UPDATE SET
       title = EXCLUDED.title,
@@ -57,9 +60,10 @@ if (command === "list") {
       thumbnail_alt = EXCLUDED.thumbnail_alt,
       draft = EXCLUDED.draft,
       category_path = COALESCE(${category}, posts.category_path),
+      visibility = COALESCE(${visibility}, posts.visibility),
       body_markdown = EXCLUDED.body_markdown,
       updated_at = now()
-    RETURNING slug, title, category_path, published_at, draft, updated_at
+    RETURNING slug, title, category_path, visibility, published_at, draft, updated_at
   `;
   console.log(JSON.stringify(rows[0], null, 2));
 } else if (command === "category") {
@@ -76,6 +80,22 @@ if (command === "list") {
   `;
   if (rows.length === 0) throw new Error(`Post not found: ${argument}`);
   console.log(JSON.stringify(rows[0], null, 2));
+} else if (command === "visibility") {
+  if (!argument || !confirmation) {
+    throw new Error(
+      "Usage: pnpm post visibility <slug> <public|friends|close_friends|private>",
+    );
+  }
+  const visibility = normalizePostVisibility(confirmation);
+  const rows = await sql`
+    UPDATE posts
+       SET visibility = ${visibility},
+           updated_at = now()
+     WHERE slug = ${argument}
+    RETURNING slug, title, visibility, updated_at
+  `;
+  if (rows.length === 0) throw new Error(`Post not found: ${argument}`);
+  console.log(JSON.stringify(rows[0], null, 2));
 } else if (command === "delete") {
   if (!argument || confirmation !== "--yes") {
     throw new Error("Usage: pnpm post delete <slug> --yes");
@@ -89,6 +109,7 @@ if (command === "list") {
   pnpm post get <slug>
   pnpm post upsert <markdown-file>
   pnpm post category <slug> "<category/path>"
+  pnpm post visibility <slug> <public|friends|close_friends|private>
   pnpm post delete <slug> --yes`);
   process.exitCode = command ? 1 : 0;
 }

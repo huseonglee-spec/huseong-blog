@@ -8,11 +8,13 @@ describe("admin post editing input", () => {
       parsePostEditInput({
         title: "  수정한 제목  ",
         category: " 생각 / 기록 ",
+        visibility: "friends",
         bodyMarkdown: "  수정한 첫 문단\r\n\r\n둘째 문단  ",
       }),
     ).toEqual({
       title: "수정한 제목",
       category: "생각/기록",
+      visibility: "friends",
       bodyMarkdown: "수정한 첫 문단\n\n둘째 문단",
     });
   });

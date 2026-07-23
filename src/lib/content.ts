@@ -2,6 +2,7 @@ import { neon } from "@neondatabase/serverless";
 import { getSecret } from "astro:env/server";
 
 import { sortPostsNewest, type BlogPost } from "./posts";
+import { normalizePostVisibility } from "./visibility";
 
 interface PostRow {
   slug: string;
@@ -12,6 +13,7 @@ interface PostRow {
   thumbnail_alt: string | null;
   draft: boolean;
   category_path: string;
+  visibility: string;
   body_markdown: string;
   updated_at: string | Date;
 }
@@ -33,20 +35,24 @@ function mapRow(row: PostRow): BlogPost {
       thumbnailAlt: row.thumbnail_alt ?? undefined,
       draft: row.draft,
       category: row.category_path,
+      visibility: normalizePostVisibility(row.visibility),
     },
     bodyMarkdown: row.body_markdown,
     updatedAt: new Date(row.updated_at),
   };
 }
 
-export async function getPublishedPosts(): Promise<BlogPost[]> {
+export async function getPublishedPosts(
+  includeRestricted = false,
+): Promise<BlogPost[]> {
   const sql = neon(databaseUrl());
   const rows = await sql`
     SELECT slug, title, subtitle, published_at, thumbnail, thumbnail_alt,
-           draft, category_path, body_markdown, updated_at
+           draft, category_path, visibility, body_markdown, updated_at
       FROM posts
      WHERE draft = false
        AND published_at <= now()
+       AND (${includeRestricted} OR visibility = 'public')
      ORDER BY published_at DESC, slug ASC
   `;
 

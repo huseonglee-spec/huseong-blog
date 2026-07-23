@@ -9,6 +9,8 @@ describe("EditPostForm", () => {
 
     expect(source).toContain('value={post.data.title}');
     expect(source).toContain('value={post.data.category}');
+    expect(source).toContain('name="visibility"');
+    expect(source).toContain("visibility === post.data.visibility");
     expect(source).toContain("{post.bodyMarkdown}</textarea>");
     expect(source).toContain('method: "PATCH"');
     expect(source).toContain("`/api/posts/${encodeURIComponent(post.id)}/`");

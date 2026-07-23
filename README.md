@@ -47,6 +47,7 @@ title: "글 제목"
 subtitle: "선택 사항"
 publishedAt: 2026-07-13T10:26:22-04:00
 category: "생각/글쓰기"
+visibility: public
 thumbnail: "https://example.com/image.jpg"
 thumbnailAlt: "이미지 설명"
 draft: false
@@ -61,12 +62,13 @@ DB에 추가하거나 같은 slug의 글을 수정합니다.
 pnpm post upsert /path/to/post-slug.md
 ```
 
-`publishedAt`을 생략하면 게시 명령을 실행한 현재 시각이 사용됩니다. `category`는 `/`로 계층을 표현하며, 새 글에서 생략하면 `미분류`가 됩니다. 기존 글을 다시 upsert할 때 `category`를 생략하면 현재 분류를 보존합니다. `subtitle`, `thumbnail`, `thumbnailAlt`, `draft`는 선택 사항입니다. 기본값은 공개 글(`draft: false`)입니다.
+`publishedAt`을 생략하면 게시 명령을 실행한 현재 시각이 사용됩니다. `category`는 `/`로 계층을 표현하며, 새 글에서 생략하면 `미분류`가 됩니다. 기존 글을 다시 upsert할 때 `category`를 생략하면 현재 분류를 보존합니다. `visibility`는 `public`, `friends`, `close_friends`, `private` 중 하나이며 생략한 새 글은 `public`, 기존 글은 현재 공개 범위를 보존합니다. `subtitle`, `thumbnail`, `thumbnailAlt`, `draft`는 선택 사항입니다. 기본값은 공개 글(`draft: false`)입니다.
 
 기존 글의 카테고리만 변경할 수도 있습니다.
 
 ```bash
 pnpm post category post-slug "생각/글쓰기"
+pnpm post visibility post-slug close_friends
 ```
 
 위 명령이 성공하면 Vercel 또는 Git 배포 없이 `https://huseong.com/posts/post-slug/`과 홈 피드에 반영됩니다.
@@ -115,7 +117,9 @@ pnpm db:migrate
 pnpm admin:password
 ```
 
-메인 화면 우측 상단의 `로그인`으로 들어갑니다. 로그인하면 버튼이 `새 글 쓰기`와 `로그아웃`으로 바뀝니다. `새 글 쓰기`를 누르면 별도 관리자 페이지로 이동하지 않고 메인 글 피드 맨 위에 제목과 Markdown 본문을 입력하는 빈 시트가 열립니다. 게시할 때 URL slug와 게시 시각을 자동 생성해 공개 글로 저장합니다. 로그인 중에는 각 글에 `수정` 버튼이 표시되며 제목·카테고리·Markdown 본문을 바로 고칠 수 있습니다.
+메인 화면 우측 상단의 `로그인`으로 들어갑니다. 로그인하면 버튼이 `새 글 쓰기`와 `로그아웃`으로 바뀝니다. `새 글 쓰기`를 누르면 별도 관리자 페이지로 이동하지 않고 메인 글 피드 맨 위에 제목과 Markdown 본문을 입력하는 빈 시트가 열립니다. 게시할 때 URL slug와 게시 시각을 자동 생성하고 공개 범위를 선택해 저장합니다. 로그인 중에는 각 글에 `수정` 버튼이 표시되며 제목·카테고리·공개 범위·Markdown 본문을 바로 고칠 수 있습니다.
+
+방문자 계정과 친구 관계 데이터는 아직 없으므로 `friends`, `close_friends`, `private` 글은 공개 피드·직접 URL·사이트맵에서 제외되고 로그인한 관리자에게만 보입니다. `public` 글은 누구나 볼 수 있습니다.
 
 `/admin/`은 로그인과 세션 작동 여부만 확인하는 보조 화면입니다. 별도의 글 관리 목록과 삭제 UI는 제공하지 않으며, 삭제나 세부 메타데이터 관리는 `pnpm post` CLI로 수행합니다. 비밀번호를 다시 설정하면 기존 로그인 세션은 모두 즉시 만료됩니다.
 

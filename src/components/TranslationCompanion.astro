@@ -1,0 +1,215 @@
+---
+import type { BlogPost } from "../lib/posts";
+import type { TranslationExpressionNote } from "../lib/translation-prototype";
+
+interface Props {
+  posts: BlogPost[];
+  notesBySlug: Record<string, TranslationExpressionNote[]>;
+}
+
+const { posts, notesBySlug } = Astro.props;
+---
+
+<aside
+  id="translation-companion"
+  class="translation-companion"
+  data-translation-companion
+  hidden
+  aria-label="현재 글의 영어 표현"
+>
+  <header class="companion-header">
+    <div>
+      <p>ADMIN · ENGLISH</p>
+      <h2>표현 선택</h2>
+    </div>
+    <button type="button" class="companion-close" data-companion-close aria-label="표현 패널 닫기">×</button>
+  </header>
+
+  {posts.map((post, index) => {
+    const notes = notesBySlug[post.id] ?? [];
+    return (
+      <section
+        class="expression-post"
+        data-expression-post={post.id}
+        hidden={index !== 0}
+      >
+        <p class="expression-post-title">{post.data.title}</p>
+        {notes.length > 0 ? (
+          <div class="expression-list">
+            {notes.map((note) => (
+              <article class="expression-card">
+                <p class="source-expression">{note.source}</p>
+                <strong lang="en">{note.current}</strong>
+                <p class="expression-explanation">{note.explanation}</p>
+                <div class="alternatives" aria-label="사용할 수 있는 다른 표현">
+                  {note.alternatives.map((alternative) => (
+                    <span lang="en">{alternative}</span>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p class="expression-empty">이 글의 표현 설명은 아직 준비되지 않았습니다.</p>
+        )}
+      </section>
+    );
+  })}
+</aside>
+
+<script>
+  const companion = document.querySelector<HTMLElement>("[data-translation-companion]");
+  const closeButton = companion?.querySelector<HTMLButtonElement>("[data-companion-close]");
+
+  if (companion) {
+    const sections = new Map(
+      Array.from(companion.querySelectorAll<HTMLElement>("[data-expression-post]")).map((section) => [
+        section.dataset.expressionPost ?? "",
+        section,
+      ]),
+    );
+    const editButtons = Array.from(
+      document.querySelectorAll<HTMLButtonElement>("[data-edit-translation]"),
+    );
+
+    const showExpressions = (slug: string) => {
+      if (!sections.has(slug)) return;
+      sections.forEach((section, key) => {
+        section.hidden = key !== slug;
+      });
+    };
+
+    const closeCompanion = () => {
+      companion.hidden = true;
+      companion.classList.remove("is-mobile-open");
+      editButtons.forEach((button) => button.setAttribute("aria-expanded", "false"));
+    };
+
+    editButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        showExpressions(button.dataset.translationPost ?? "");
+        companion.hidden = false;
+        companion.classList.toggle(
+          "is-mobile-open",
+          window.matchMedia("(max-width: 1080px)").matches,
+        );
+        editButtons.forEach((candidate) => {
+          candidate.setAttribute("aria-expanded", String(candidate === button));
+        });
+      });
+    });
+    closeButton?.addEventListener("click", closeCompanion);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeCompanion();
+    });
+  }
+</script>
+
+<style>
+  .translation-companion {
+    position: sticky;
+    top: 9rem;
+    grid-column: 3;
+    align-self: start;
+    width: min(280px, 100%);
+    max-height: calc(100vh - 10.5rem);
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--sheet);
+    box-shadow: 0 8px 32px rgba(65, 52, 38, 0.07);
+  }
+  .translation-companion[hidden] { display: none; }
+
+  .companion-header {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.05rem 0.9rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .companion-header p {
+    margin: 0 0 0.15rem;
+    color: var(--ink-soft);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.11em;
+  }
+  .companion-header h2 { margin: 0; font-size: 1rem; line-height: 1.35; }
+  .companion-close {
+    display: inline-flex;
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    color: var(--ink-soft);
+    background: transparent;
+    font: inherit;
+    font-size: 1.25rem;
+    cursor: pointer;
+  }
+
+  .expression-post { padding: 0.95rem 1.05rem 1.1rem; }
+  .expression-post[hidden] { display: none; }
+  .expression-post-title {
+    margin: 0 0 0.8rem;
+    padding-bottom: 0.7rem;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+  .expression-list { display: grid; gap: 1rem; }
+  .expression-card + .expression-card {
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+  .source-expression {
+    margin: 0 0 0.18rem;
+    color: var(--ink-soft);
+    font-size: 0.68rem;
+  }
+  .expression-card > strong { font-size: 0.83rem; line-height: 1.45; }
+  .expression-explanation {
+    margin: 0.5rem 0 0.65rem;
+    color: var(--ink-soft);
+    font-size: 0.7rem;
+    line-height: 1.65;
+  }
+  .alternatives { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+  .alternatives span {
+    padding: 0.28rem 0.42rem;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    color: var(--link);
+    background: var(--paper);
+    font-size: 0.66rem;
+    line-height: 1.35;
+  }
+  .expression-empty { margin: 0; color: var(--ink-soft); font-size: 0.72rem; }
+
+  @media (max-width: 1080px) {
+    .translation-companion {
+      position: fixed;
+      z-index: 35;
+      right: 10px;
+      bottom: 10px;
+      left: 10px;
+      top: auto;
+      grid-column: 1;
+      width: auto;
+      max-height: min(72vh, 620px);
+      overscroll-behavior: contain;
+      transform: translateY(calc(100% + 20px));
+      transition: transform 180ms ease;
+    }
+    .translation-companion.is-mobile-open { transform: translateY(0); }
+    .companion-close { min-width: 2.75rem; min-height: 2.75rem; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .translation-companion { transition: none; }
+  }
+</style>

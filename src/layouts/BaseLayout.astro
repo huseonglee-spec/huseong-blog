@@ -7,6 +7,7 @@ interface Props {
   description?: string;
   canonicalPath?: string;
   type?: "website" | "article";
+  robots?: string;
 }
 
 const {
@@ -14,6 +15,7 @@ const {
   description = "이후성의 생각과 경험을 기록하는 공간",
   canonicalPath = "/",
   type = "website",
+  robots,
 } = Astro.props;
 const canonical = new URL(canonicalPath, Astro.site);
 ---
@@ -26,6 +28,7 @@ const canonical = new URL(canonicalPath, Astro.site);
     <meta name="generator" content={Astro.generator} />
     <meta name="theme-color" content="#f2eadb" />
     <meta name="description" content={description} />
+    {robots && <meta name="robots" content={robots} />}
     <link rel="canonical" href={canonical} />
     <meta property="og:type" content={type} />
     <meta property="og:title" content={title} />

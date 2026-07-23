@@ -1,0 +1,24 @@
+---
+import FocusBlogConcept from "../../components/FocusBlogConcept.astro";
+import type { FocusVariation } from "../../components/FocusBlogConcept.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getPublishedPosts } from "../../lib/content";
+
+const concepts: FocusVariation[] = ["focus", "focus-column", "focus-index", "focus-margin", "focus-night"];
+const requestedConcept = Astro.params.concept;
+if (!concepts.includes(requestedConcept as FocusVariation)) {
+  return Astro.redirect("/design-lab/");
+}
+const concept = requestedConcept as FocusVariation;
+const posts = await getPublishedPosts();
+Astro.response.headers.set("Cache-Control", "no-store");
+---
+
+<BaseLayout
+  title={`${concept} 집중 모드 시안 · huseong.com`}
+  description="후성 블로그 조용한 집중 모드 UI/UX 변주"
+  canonicalPath={`/design-lab/${concept}/`}
+  robots="noindex, nofollow"
+>
+  <FocusBlogConcept posts={posts} variation={concept} />
+</BaseLayout>

@@ -46,6 +46,7 @@ export const PATCH: APIRoute = async (context) => {
     fields = parsePostEditInput({
       title: form.get("title"),
       category: form.get("category"),
+      visibility: form.get("visibility"),
       bodyMarkdown: form.get("bodyMarkdown"),
     });
   } catch (error) {

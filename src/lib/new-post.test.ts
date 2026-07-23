@@ -8,6 +8,7 @@ describe("inline new post input", () => {
       {
         title: "  새 글  ",
         category: " 생각 / 기록 ",
+        visibility: "close_friends",
         bodyMarkdown: "  첫 문단\r\n\r\n둘째 문단  ",
       },
       new Date("2026-07-14T23:30:45.000Z"),
@@ -22,6 +23,7 @@ describe("inline new post input", () => {
       thumbnailAlt: null,
       draft: false,
       category: "생각/기록",
+      visibility: "close_friends",
       bodyMarkdown: "첫 문단\n\n둘째 문단",
     });
     expect(post.publishedAt.toISOString()).toBe("2026-07-14T23:30:45.000Z");

@@ -1,6 +1,7 @@
 import type { WritablePost } from "./post-file";
 import { normalizeCategoryPath } from "./categories";
 import { normalizePostBodyMarkdown } from "./edit-post";
+import { normalizePostVisibility } from "./visibility";
 
 const MAX_TITLE_LENGTH = 200;
 const MAX_BODY_BYTES = 512 * 1024;
@@ -19,6 +20,7 @@ export interface NewPostInput {
   title?: unknown;
   bodyMarkdown?: unknown;
   category?: unknown;
+  visibility?: unknown;
 }
 
 export function parseNewPostInput(
@@ -60,6 +62,7 @@ export function parseNewPostInput(
     thumbnailAlt: null,
     draft: false,
     category: normalizeCategoryPath(input.category),
+    visibility: normalizePostVisibility(input.visibility),
     bodyMarkdown,
   };
 }

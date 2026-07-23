@@ -1,0 +1,655 @@
+---
+import type { BlogPost } from "../lib/posts";
+
+import { renderPostMarkdown } from "../lib/markdown";
+
+export type FocusVariation = "focus" | "focus-column" | "focus-index" | "focus-margin" | "focus-night";
+
+interface Props {
+  posts: BlogPost[];
+  variation: FocusVariation;
+}
+
+const { posts, variation } = Astro.props;
+const renderedPosts = await Promise.all(
+  posts.map(async (post) => ({
+    post,
+    ...(await renderPostMarkdown(post.bodyMarkdown)),
+    readingMinutes: Math.max(1, Math.ceil(post.bodyMarkdown.length / 500)),
+  })),
+);
+const categories = [...new Set(posts.map((post) => post.data.category))];
+const categoryDirectory = categories.map((category) => ({
+  category,
+  segments: category.split("/"),
+  count: posts.filter((post) => post.data.category === category).length,
+}));
+const variationInfo = {
+  focus: {
+    number: "01",
+    name: "고요한 양옆",
+    description: "선택한 글만 가운데 두고 카테고리와 아카이브를 양옆으로 밀어낸 기준안",
+  },
+  "focus-column": {
+    number: "02",
+    name: "한 줄 독서실",
+    description: "탐색 레일을 최대한 얇게 줄이고 한 줄의 독서 흐름을 길게 남긴 변주",
+  },
+  "focus-index": {
+    number: "03",
+    name: "인덱스 독서실",
+    description: "카테고리와 글 차례를 한쪽에 모아 자료실처럼 찾고 읽는 변주",
+  },
+  "focus-margin": {
+    number: "04",
+    name: "여백 노트",
+    description: "넓은 여백에 글의 분류와 읽기 정보를 남긴 주석형 변주",
+  },
+  "focus-night": {
+    number: "05",
+    name: "밤의 독서실",
+    description: "같은 집중 구조를 어두운 종이와 낮은 대비로 옮긴 야간 변주",
+  },
+} as const;
+const info = variationInfo[variation];
+const isActualPreview = variation === "focus-index";
+const initialCategory = posts[0]?.data.category ?? "";
+---
+
+<div
+  class="focus-blog"
+  data-focus-blog
+  data-document-scroll
+  data-variation={variation}
+  data-post-count={renderedPosts.length}
+>
+  <header class="focus-topbar">
+    <a class="focus-brand" href="/">
+      <strong>huseong.com</strong>
+      <span>이후성의 생각과 경험</span>
+    </a>
+
+    <nav class="top-categories" aria-label="글 카테고리">
+      <button type="button" data-category-filter="" aria-pressed="true">
+        모든 글 <sup>{posts.length}</sup>
+      </button>
+      {categoryDirectory.map(({ category, segments, count }) => (
+        <button type="button" data-category-filter={category} aria-pressed="false" title={category}>
+          {segments.at(-1)} <sup>{count}</sup>
+        </button>
+      ))}
+    </nav>
+
+    <div class="focus-utility">
+      {isActualPreview ? (
+        <button type="button" class="mobile-archive-toggle" data-mobile-archive-toggle aria-expanded="false">
+          글 탐색
+        </button>
+      ) : (
+        <>
+          <span>{info.number} / FOCUS VARIATION</span>
+          <a href="/design-lab/">다른 시안</a>
+        </>
+      )}
+    </div>
+  </header>
+
+  {renderedPosts.length > 0 ? (
+    <div class="focus-shell">
+      <aside class="category-rail" aria-label="카테고리 디렉터리">
+        <header>
+          {!isActualPreview && <span>SECTIONS</span>}
+          <strong>{isActualPreview ? "카테고리" : "생각의 갈래"}</strong>
+        </header>
+
+        {isActualPreview ? (
+          <nav class="category-accordion" data-category-accordion aria-label="카테고리별 글">
+            {categoryDirectory.map(({ category, segments, count }) => {
+              const expanded = category === initialCategory;
+              return (
+                <section class="accordion-group" data-accordion-category={category}>
+                  <button type="button" class="category-toggle" data-category-toggle aria-expanded={expanded ? "true" : "false"}>
+                    <strong>{segments.at(-1)}</strong>
+                    <b>{count}</b>
+                    <span class="accordion-chevron" aria-hidden="true"></span>
+                  </button>
+                  <div class="accordion-posts" data-accordion-posts hidden={!expanded}>
+                    {renderedPosts.map(({ post }, index) => post.data.category === category && (
+                      <button
+                        type="button"
+                        data-post-index-button={index}
+                        data-post-category={post.data.category}
+                        aria-current={index === 0 ? "true" : undefined}
+                      >
+                        <span>{String(index + 1).padStart(2, "0")}</span>
+                        <i>{post.data.title}</i>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+          </nav>
+        ) : (
+          <nav data-category-directory>
+            <button type="button" data-category-filter="" aria-pressed="true">
+              <span><i>ROOT</i><strong>모든 기록</strong></span>
+              <b data-category-count>{posts.length}</b>
+            </button>
+            {categoryDirectory.map(({ category, segments, count }) => (
+              <button type="button" data-category-filter={category} aria-pressed="false">
+                <span>
+                  <i>{segments.length > 1 ? segments.slice(0, -1).join(" / ") : "SECTION"}</i>
+                  <strong>{segments.at(-1)}</strong>
+                </span>
+                <b data-category-count>{count}</b>
+              </button>
+            ))}
+          </nav>
+        )}
+
+        {!isActualPreview && (
+          <footer>
+            <span>현재 분류</span>
+            <strong data-active-category>모든 글</strong>
+            <i><b data-active-category-count>{posts.length}</b>편</i>
+          </footer>
+        )}
+      </aside>
+
+      <main class="focus-reader" data-focus-reader>
+        {!isActualPreview && (
+          <header class="variation-intro">
+            <span>{info.number}</span>
+            <div>
+              <strong>{info.name}</strong>
+              <p>{info.description}</p>
+            </div>
+          </header>
+        )}
+
+        <section class="focus-viewport" aria-label="선택한 글">
+          {renderedPosts.map(({ post, html, readingMinutes }, index) => (
+            <article
+              class="focus-post"
+              data-focus-post
+              data-post-category={post.data.category}
+              data-post-title={post.data.title}
+              hidden={index !== 0}
+            >
+              <aside class="article-note" aria-label="글 정보">
+                <span>NOTE</span>
+                <dl>
+                  <div><dt>분류</dt><dd>{post.data.category.replaceAll("/", " · ")}</dd></div>
+                  <div><dt>위치</dt><dd>{String(index + 1).padStart(2, "0")} / {String(posts.length).padStart(2, "0")}</dd></div>
+                  <div><dt>읽기</dt><dd>약 {readingMinutes}분</dd></div>
+                </dl>
+              </aside>
+
+              <div class="focus-copy">
+                <header class="post-heading">
+                  <p class="post-meta">
+                    <span>{post.data.category.replaceAll("/", " · ")}</span>
+                    {!isActualPreview && <span>{String(index + 1).padStart(2, "0")}</span>}
+                  </p>
+                  <h1>{post.data.title}</h1>
+                  {post.data.subtitle && <p class="post-subtitle">{post.data.subtitle}</p>}
+                </header>
+                <div class="post-content post-body" set:html={html} />
+              </div>
+            </article>
+          ))}
+        </section>
+      </main>
+
+      {!isActualPreview && (
+        <aside class="post-rail" aria-label="글 차례">
+          <header>
+            <span>POST INDEX</span>
+            <strong data-active-category>모든 글</strong>
+            <i><b data-active-category-count>{posts.length}</b> POSTS</i>
+          </header>
+
+          <nav>
+            {renderedPosts.map(({ post }, index) => (
+              <button
+                type="button"
+                data-post-index-button={index}
+                data-post-category={post.data.category}
+                aria-current={index === 0 ? "true" : undefined}
+              >
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <i>{post.data.title}</i>
+              </button>
+            ))}
+          </nav>
+        </aside>
+      )}
+
+      <footer class="reader-dock" aria-live="polite">
+        <p><strong data-current-index>01</strong><span>/</span><span data-filtered-total>{String(renderedPosts.length).padStart(2, "0")}</span></p>
+        <div class="reader-progress" aria-hidden="true"><span data-progress style={`--progress:${1 / renderedPosts.length}`} /></div>
+        {!isActualPreview && <p data-current-title>{renderedPosts[0].post.data.title}</p>}
+        <div class="reader-buttons">
+          <button type="button" aria-label="이전 글" data-previous-post disabled>←</button>
+          <button type="button" aria-label="다음 글" data-next-post>→</button>
+        </div>
+      </footer>
+    </div>
+  ) : (
+    <p class="empty-blog">아직 보여드릴 글이 없습니다.</p>
+  )}
+</div>
+
+<script>
+  const root = document.querySelector<HTMLElement>("[data-focus-blog]");
+  const reader = root?.querySelector<HTMLElement>("[data-focus-reader]");
+
+  if (root && reader) {
+    const posts = Array.from(root.querySelectorAll<HTMLElement>("[data-focus-post]"));
+    const indexButtons = Array.from(root.querySelectorAll<HTMLButtonElement>("[data-post-index-button]"));
+    const categoryButtons = Array.from(root.querySelectorAll<HTMLButtonElement>("[data-category-filter]"));
+    const categoryLabels = Array.from(root.querySelectorAll<HTMLElement>("[data-active-category]"));
+    const categoryCounts = Array.from(root.querySelectorAll<HTMLElement>("[data-active-category-count]"));
+    const accordionGroups = Array.from(root.querySelectorAll<HTMLElement>("[data-accordion-category]"));
+    const categoryToggles = Array.from(root.querySelectorAll<HTMLButtonElement>("[data-category-toggle]"));
+    const mobileArchiveToggle = root.querySelector<HTMLButtonElement>("[data-mobile-archive-toggle]");
+    const previousButton = root.querySelector<HTMLButtonElement>("[data-previous-post]");
+    const nextButton = root.querySelector<HTMLButtonElement>("[data-next-post]");
+    const currentIndex = root.querySelector<HTMLElement>("[data-current-index]");
+    const filteredTotal = root.querySelector<HTMLElement>("[data-filtered-total]");
+    const currentTitle = root.querySelector<HTMLElement>("[data-current-title]");
+    const progress = root.querySelector<HTMLElement>("[data-progress]");
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let visibleIndexes = posts.map((_, index) => index);
+    let activePosition = 0;
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    const animationFrames = (direction: number): Keyframe[] => {
+      const offset = direction >= 0 ? 22 : -22;
+      switch (root.dataset.variation) {
+        case "focus-column":
+          return [{ opacity: 0, transform: `translateY(${offset}px)` }, { opacity: 1, transform: "translateY(0)" }];
+        case "focus-index":
+          return [{ opacity: 0, transform: `translateX(${offset}px)` }, { opacity: 1, transform: "translateX(0)" }];
+        case "focus-margin":
+          return [{ opacity: 0, clipPath: "inset(0 0 12% 0)" }, { opacity: 1, clipPath: "inset(0)" }];
+        case "focus-night":
+          return [{ opacity: 0 }, { opacity: 1 }];
+        default:
+          return [{ opacity: 0, transform: "scale(.992)" }, { opacity: 1, transform: "scale(1)" }];
+      }
+    };
+
+    const showPosition = (nextPosition: number, animate = true) => {
+      const clamped = Math.max(0, Math.min(nextPosition, visibleIndexes.length - 1));
+      const direction = clamped - activePosition;
+      activePosition = clamped;
+      const postIndex = visibleIndexes[activePosition] ?? 0;
+
+      posts.forEach((post, index) => { post.hidden = index !== postIndex; });
+      indexButtons.forEach((button) => {
+        if (Number(button.dataset.postIndexButton) === postIndex) button.setAttribute("aria-current", "true");
+        else button.removeAttribute("aria-current");
+      });
+
+      const activePost = posts[postIndex];
+      const activeGroup = accordionGroups.find((group) => group.dataset.accordionCategory === activePost?.dataset.postCategory);
+      activeGroup?.querySelector<HTMLButtonElement>("[data-category-toggle]")?.setAttribute("aria-expanded", "true");
+      const activePanel = activeGroup?.querySelector<HTMLElement>("[data-accordion-posts]");
+      if (activePanel) activePanel.hidden = false;
+      if (animate && !reducedMotion.matches) {
+        activePost?.animate(animationFrames(direction), {
+          duration: root.dataset.variation === "focus-night" ? 520 : 340,
+          easing: "cubic-bezier(.2,.75,.2,1)",
+        });
+      }
+
+      if (previousButton) previousButton.disabled = activePosition === 0;
+      if (nextButton) nextButton.disabled = activePosition === visibleIndexes.length - 1;
+      if (currentIndex) currentIndex.textContent = String(activePosition + 1).padStart(2, "0");
+      if (filteredTotal) filteredTotal.textContent = String(visibleIndexes.length).padStart(2, "0");
+      if (currentTitle) currentTitle.textContent = activePost?.dataset.postTitle ?? "";
+      progress?.style.setProperty("--progress", String((activePosition + 1) / visibleIndexes.length));
+      if (animate) window.scrollTo({ top: 0, behavior: reducedMotion.matches ? "auto" : "smooth" });
+    };
+
+    const setCategory = (category: string) => {
+      visibleIndexes = posts
+        .map((post, index) => ({ post, index }))
+        .filter(({ post }) => !category || post.dataset.postCategory === category)
+        .map(({ index }) => index);
+      indexButtons.forEach((button) => {
+        button.hidden = !visibleIndexes.includes(Number(button.dataset.postIndexButton));
+      });
+      categoryButtons.forEach((button) => {
+        button.setAttribute("aria-pressed", String((button.dataset.categoryFilter ?? "") === category));
+      });
+      categoryLabels.forEach((label) => { label.textContent = category || "모든 글"; });
+      categoryCounts.forEach((count) => { count.textContent = String(visibleIndexes.length); });
+      activePosition = 0;
+      showPosition(0);
+    };
+
+    previousButton?.addEventListener("click", () => showPosition(activePosition - 1));
+    nextButton?.addEventListener("click", () => showPosition(activePosition + 1));
+    categoryButtons.forEach((button) => {
+      button.addEventListener("click", () => setCategory(button.dataset.categoryFilter ?? ""));
+    });
+    indexButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const postIndex = Number(button.dataset.postIndexButton);
+        const position = visibleIndexes.indexOf(postIndex);
+        if (position >= 0) {
+          showPosition(position);
+          root.dataset.archiveOpen = "false";
+          mobileArchiveToggle?.setAttribute("aria-expanded", "false");
+        }
+      });
+    });
+    categoryToggles.forEach((button) => {
+      button.addEventListener("click", () => {
+        const group = button.closest<HTMLElement>("[data-accordion-category]");
+        const willExpand = button.getAttribute("aria-expanded") !== "true";
+        button.setAttribute("aria-expanded", String(willExpand));
+        const panel = group?.querySelector<HTMLElement>("[data-accordion-posts]");
+        if (panel) panel.hidden = !willExpand;
+      });
+    });
+    mobileArchiveToggle?.addEventListener("click", () => {
+      const open = root.dataset.archiveOpen !== "true";
+      root.dataset.archiveOpen = String(open);
+      mobileArchiveToggle.setAttribute("aria-expanded", String(open));
+    });
+
+    document.addEventListener("keydown", (event) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.matches("input, textarea, select, [contenteditable='true']")) return;
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        showPosition(activePosition - 1);
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        showPosition(activePosition + 1);
+      }
+      if (event.key === "Escape") {
+        root.dataset.archiveOpen = "false";
+        mobileArchiveToggle?.setAttribute("aria-expanded", "false");
+      }
+    });
+
+    reader.addEventListener("touchstart", (event) => {
+      touchStartX = event.changedTouches[0]?.clientX ?? 0;
+      touchStartY = event.changedTouches[0]?.clientY ?? 0;
+    }, { passive: true });
+    reader.addEventListener("touchend", (event) => {
+      const deltaX = touchStartX - (event.changedTouches[0]?.clientX ?? touchStartX);
+      const deltaY = touchStartY - (event.changedTouches[0]?.clientY ?? touchStartY);
+      if (Math.abs(deltaX) > 46 && Math.abs(deltaX) > Math.abs(deltaY)) {
+        showPosition(activePosition + (deltaX > 0 ? 1 : -1));
+      }
+    }, { passive: true });
+
+    showPosition(0, false);
+  }
+</script>
+
+<style>
+  :global(body:has(.focus-blog)) { overflow-x:hidden; }
+
+  .focus-blog {
+    --topbar:84px;
+    --left-rail:220px;
+    --right-rail:230px;
+    --paper:#faf7ef;
+    --paper-side:#f1ece1;
+    --ink:#2a251f;
+    --muted:#8b8174;
+    --line:rgba(70,57,43,.16);
+    --accent:#6e5035;
+    min-height:100svh;
+    color:var(--ink);
+    background:var(--paper);
+  }
+
+  .focus-topbar {
+    position:sticky;
+    top:0;
+    z-index:40;
+    display:grid;
+    grid-template-columns:var(--left-rail) minmax(0,1fr) var(--right-rail);
+    align-items:center;
+    height:var(--topbar);
+    border-bottom:1px solid var(--line);
+    background:color-mix(in srgb,var(--paper) 94%,transparent);
+    backdrop-filter:blur(16px);
+  }
+  .focus-brand { display:grid; padding-inline:26px; color:inherit; text-decoration:none; }
+  .focus-brand strong { font-size:.82rem; letter-spacing:.02em; }
+  .focus-brand span { margin-top:.14rem; color:var(--muted); font-size:.5rem; letter-spacing:.06em; }
+  .top-categories { display:flex; justify-content:center; gap:.2rem; min-width:0; overflow-x:auto; scrollbar-width:none; }
+  .top-categories::-webkit-scrollbar { display:none; }
+  .top-categories button { flex:none; padding:.45rem .7rem; border:0; border-radius:999px; color:var(--muted); background:transparent; font:inherit; font-size:.58rem; cursor:pointer; }
+  .top-categories button sup { margin-left:.2rem; font-size:.44rem; }
+  .top-categories button:hover,
+  .top-categories button[aria-pressed="true"] { color:var(--ink); background:color-mix(in srgb,var(--paper-side) 75%,transparent); }
+  .focus-utility { display:flex; align-items:center; justify-content:flex-end; gap:.8rem; padding-inline:24px; font-size:.52rem; }
+  .focus-utility span { color:var(--muted); }
+  .focus-utility a { color:inherit; text-underline-offset:.25em; }
+  .mobile-archive-toggle { display:none; border:0; color:var(--ink); background:transparent; font:inherit; font-size:.72rem; cursor:pointer; }
+
+  .focus-shell { min-height:calc(100svh - var(--topbar)); }
+  .category-rail,
+  .post-rail { position:fixed; z-index:20; top:var(--topbar); bottom:0; display:grid; min-height:0; padding:clamp(28px,4vh,46px) 24px 92px; background:var(--paper-side); }
+  .category-rail { left:0; width:var(--left-rail); grid-template-rows:auto minmax(0,1fr) auto; border-right:1px solid var(--line); }
+  .post-rail { right:0; width:var(--right-rail); grid-template-rows:auto minmax(0,1fr); border-left:1px solid var(--line); }
+  .category-rail > header,
+  .post-rail > header { display:grid; align-content:start; gap:.24rem; margin-bottom:1.25rem; }
+  .category-rail > header span,
+  .post-rail > header span { color:var(--muted); font-size:.62rem; letter-spacing:.14em; }
+  .category-rail > header strong,
+  .post-rail > header strong { overflow:hidden; font-size:1rem; text-overflow:ellipsis; white-space:nowrap; }
+  .post-rail > header i { color:var(--muted); font-size:.6rem; font-style:normal; letter-spacing:.08em; }
+
+  .category-rail nav { display:grid; align-content:start; }
+  .category-rail nav button { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:.72rem; padding:.76rem .55rem; border:0; border-left:2px solid transparent; color:var(--muted); background:transparent; font:inherit; text-align:left; cursor:pointer; }
+  .category-rail nav button:hover,
+  .category-rail nav button[aria-pressed="true"] { border-left-color:var(--accent); color:var(--ink); background:color-mix(in srgb,var(--paper) 62%,transparent); }
+  .category-rail nav button > span { display:grid; min-width:0; }
+  .category-rail nav button i { overflow:hidden; font-size:.58rem; font-style:normal; letter-spacing:.08em; text-overflow:ellipsis; white-space:nowrap; }
+  .category-rail nav button strong { overflow:hidden; margin-top:.12rem; font-size:.9rem; text-overflow:ellipsis; white-space:nowrap; }
+  .category-rail nav button > b { display:grid; place-items:center; min-width:1.72rem; height:1.72rem; border:1px solid var(--line); border-radius:50%; font-size:.62rem; font-weight:500; }
+  .category-rail > footer { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:.2rem .5rem; padding-top:.8rem; border-top:1px solid var(--line); }
+  .category-rail > footer span { grid-column:1/-1; color:var(--muted); font-size:.58rem; letter-spacing:.1em; }
+  .category-rail > footer strong { overflow:hidden; font-size:.88rem; text-overflow:ellipsis; white-space:nowrap; }
+  .category-rail > footer i { color:var(--muted); font-size:.62rem; font-style:normal; }
+
+  .post-rail nav { display:grid; align-content:start; min-height:0; overflow:hidden; }
+  .post-rail nav button { display:grid; grid-template-columns:2rem minmax(0,1fr); gap:.52rem; padding:.76rem 0; border:0; border-bottom:1px solid var(--line); color:color-mix(in srgb,var(--muted) 80%,transparent); background:transparent; font:inherit; font-size:.84rem; text-align:left; cursor:pointer; }
+  .post-rail nav button[hidden] { display:none; }
+  .post-rail nav button span { font-size:.6rem; font-variant-numeric:tabular-nums; }
+  .post-rail nav button i { overflow:hidden; font-style:normal; text-overflow:ellipsis; white-space:nowrap; }
+  .post-rail nav button:hover,
+  .post-rail nav button[aria-current="true"] { color:var(--ink); }
+
+  .focus-reader { min-height:calc(100svh - var(--topbar)); margin-right:var(--right-rail); margin-left:var(--left-rail); }
+  .variation-intro { position:absolute; z-index:5; top:calc(var(--topbar) + 28px); left:calc(var(--left-rail) + 30px); display:flex; gap:.7rem; max-width:390px; }
+  .variation-intro > span { color:var(--muted); font-size:.48rem; }
+  .variation-intro strong { display:block; font-size:.7rem; letter-spacing:.06em; }
+  .variation-intro p { margin:.2rem 0 0; color:var(--muted); font-size:.55rem; line-height:1.5; }
+  .focus-viewport { display:grid; place-items:start center; min-height:calc(100svh - var(--topbar)); padding:clamp(128px,16vh,180px) clamp(32px,5vw,86px) 180px; }
+  .focus-post { width:min(720px,100%); }
+  .focus-post[hidden] { display:none; }
+  .focus-blog[data-variation] .focus-post[hidden] { display:none; }
+  .article-note { display:none; }
+  .focus-copy { min-width:0; overflow:visible; }
+  .post-meta { display:flex; justify-content:space-between; gap:1rem; margin:0 0 1.1rem; color:var(--muted); font-size:.59rem; letter-spacing:.06em; }
+  .post-heading h1 { max-width:11em; margin:0; font-size:clamp(3rem,6.3vw,6.2rem); font-weight:650; line-height:1.1; letter-spacing:-.055em; text-wrap:balance; }
+  .post-subtitle { max-width:36rem; margin:1.15rem 0 0; color:var(--muted); font-size:.92rem; line-height:1.7; }
+  .post-content { color:color-mix(in srgb,var(--ink) 91%,transparent); }
+  .post-content.post-body { max-width:42rem; margin-top:clamp(2.4rem,6vh,5rem); padding-bottom:8rem; font-size:clamp(.93rem,1.35vw,1.08rem); line-height:1.95; }
+  .post-content.post-body > :first-child { margin-top:0; }
+
+  .reader-dock { position:fixed; z-index:35; right:calc(var(--right-rail) + 28px); bottom:18px; left:calc(var(--left-rail) + 28px); display:grid; grid-template-columns:auto minmax(70px,150px) minmax(0,1fr) auto; align-items:center; gap:.8rem; min-height:48px; padding:.45rem .65rem; border:1px solid var(--line); border-radius:999px; color:var(--muted); background:color-mix(in srgb,var(--paper) 90%,transparent); font-size:.52rem; backdrop-filter:blur(14px); }
+  .reader-dock p { margin:0; }
+  .reader-dock > p:first-child { display:flex; gap:.3rem; font-variant-numeric:tabular-nums; }
+  .reader-dock > p:nth-of-type(2) { overflow:hidden; text-align:right; text-overflow:ellipsis; white-space:nowrap; }
+  .reader-progress { height:1px; overflow:hidden; background:var(--line); }
+  .reader-progress span { display:block; width:100%; height:100%; background:var(--accent); transform:scaleX(var(--progress)); transform-origin:left; transition:transform .25s ease; }
+  .reader-buttons { display:flex; gap:.3rem; }
+  .reader-buttons button { display:grid; place-items:center; width:34px; height:34px; border:1px solid var(--line); border-radius:50%; color:var(--ink); background:var(--paper); font:inherit; cursor:pointer; }
+  .reader-buttons button:disabled { opacity:.25; cursor:default; }
+
+  /* 01 — 원형의 균형을 그대로 다듬은 기준안 */
+  .focus-blog[data-variation="focus"] .focus-post { width:min(720px,100%); }
+
+  /* 02 — 레일을 숫자에 가깝게 줄인 단일 칼럼 */
+  .focus-blog[data-variation="focus-column"] { --left-rail:138px; --right-rail:64px; --paper:#fbfaf6; --paper-side:#f4f1e9; }
+  .focus-blog[data-variation="focus-column"] .category-rail { padding-inline:16px; }
+  .focus-blog[data-variation="focus-column"] .category-rail > header strong,
+  .focus-blog[data-variation="focus-column"] .category-rail nav button i,
+  .focus-blog[data-variation="focus-column"] .category-rail nav button > b,
+  .focus-blog[data-variation="focus-column"] .category-rail > footer i { display:none; }
+  .focus-blog[data-variation="focus-column"] .category-rail nav button { grid-template-columns:1fr; padding:.72rem .35rem; }
+  .focus-blog[data-variation="focus-column"] .category-rail nav button strong { font-size:.82rem; }
+  .focus-blog[data-variation="focus-column"] .post-rail { padding:30px 12px 90px; }
+  .focus-blog[data-variation="focus-column"] .post-rail > header strong,
+  .focus-blog[data-variation="focus-column"] .post-rail > header i,
+  .focus-blog[data-variation="focus-column"] .post-rail nav button i { display:none; }
+  .focus-blog[data-variation="focus-column"] .post-rail nav button { display:grid; grid-template-columns:1fr; place-items:center; padding:.7rem 0; }
+  .focus-blog[data-variation="focus-column"] .focus-post { width:min(660px,100%); }
+  .focus-blog[data-variation="focus-column"] .post-heading h1 { max-width:9em; font-size:clamp(3.4rem,7vw,6.8rem); }
+
+  /* 03 — 카테고리와 글 목록을 한쪽 서가에 모은 인덱스형 */
+  .focus-blog[data-variation="focus-index"] { --left-rail:300px; --right-rail:0px; --paper:#f7f3e9; --paper-side:#ece5d7; }
+  .focus-blog[data-variation="focus-index"] .category-rail { grid-template-rows:auto minmax(0,1fr); padding-inline:22px; }
+  .focus-blog[data-variation="focus-index"] .post-rail { display:none; }
+  .focus-blog[data-variation="focus-index"] .focus-reader { margin:0; }
+  .focus-blog[data-variation="focus-index"] .variation-intro { left:calc(50% - 310px); }
+  .focus-blog[data-variation="focus-index"] .focus-viewport { padding-top:clamp(82px,11vh,120px); }
+  .focus-blog[data-variation="focus-index"] .focus-post { width:min(620px,calc(100vw - 640px)); }
+  .focus-blog[data-variation="focus-index"] .post-heading h1 { font-size:clamp(2.5rem,4.7vw,4.5rem); }
+  .focus-blog[data-variation="focus-index"] .post-content.post-body { font-size:clamp(1.02rem,1.5vw,1.18rem); line-height:1.9; }
+  .focus-blog[data-variation="focus-index"] .reader-dock { right:auto; left:50%; grid-template-columns:auto minmax(70px,1fr) auto; width:min(620px,calc(100vw - 640px)); transform:translateX(-50%); }
+  .focus-blog[data-variation="focus-index"] .category-accordion { display:block; min-height:0; overflow:auto; }
+  .focus-blog[data-variation="focus-index"] .accordion-group { border-bottom:1px solid var(--line); }
+  .focus-blog[data-variation="focus-index"] .category-accordion .category-toggle { display:grid; grid-template-columns:minmax(0,1fr) auto auto; width:100%; padding:.9rem .25rem; border:0; border-left:0; color:var(--ink); background:transparent; }
+  .focus-blog[data-variation="focus-index"] .category-toggle > strong { margin:0; font-size:.94rem; }
+  .focus-blog[data-variation="focus-index"] .category-toggle > b { min-width:1.65rem; height:1.65rem; font-size:.6rem; }
+  .focus-blog[data-variation="focus-index"] .category-toggle > .accordion-chevron { display:block; width:.48rem; height:.48rem; border-right:1px solid currentColor; border-bottom:1px solid currentColor; transform:rotate(-45deg); transition:transform .18s ease; }
+  .focus-blog[data-variation="focus-index"] .category-toggle[aria-expanded="true"] > .accordion-chevron { transform:rotate(45deg); }
+  .focus-blog[data-variation="focus-index"] .category-toggle:hover { background:color-mix(in srgb,var(--paper) 56%,transparent); }
+  .focus-blog[data-variation="focus-index"] .accordion-posts { display:grid; padding:0 0 .6rem .7rem; }
+  .focus-blog[data-variation="focus-index"] .accordion-posts[hidden] { display:none; }
+  .focus-blog[data-variation="focus-index"] .accordion-posts button { display:grid; grid-template-columns:1.8rem minmax(0,1fr); gap:.45rem; padding:.62rem .45rem; border:0; border-left:2px solid transparent; color:var(--muted); background:transparent; }
+  .focus-blog[data-variation="focus-index"] .accordion-posts button > span { display:block; font-size:.57rem; font-variant-numeric:tabular-nums; }
+  .focus-blog[data-variation="focus-index"] .accordion-posts button i { overflow:hidden; font-size:.84rem; font-style:normal; text-overflow:ellipsis; white-space:nowrap; }
+  .focus-blog[data-variation="focus-index"] .accordion-posts button:hover,
+  .focus-blog[data-variation="focus-index"] .accordion-posts button[aria-current="true"] { border-left-color:var(--accent); color:var(--ink); background:color-mix(in srgb,var(--paper) 66%,transparent); }
+
+  @media (min-width: 781px) {
+    .focus-blog[data-variation="focus-index"] .top-categories { display:none; }
+  }
+
+  /* 04 — 본문 옆에 작은 읽기 주석을 남기는 여백형 */
+  .focus-blog[data-variation="focus-margin"] { --left-rail:170px; --right-rail:205px; --paper:#fcf8ef; --paper-side:#f3eadc; }
+  .focus-blog[data-variation="focus-margin"] .focus-post { display:grid; grid-template-columns:150px minmax(0,680px); gap:clamp(28px,4vw,62px); width:min(900px,100%); }
+  .focus-blog[data-variation="focus-margin"] .article-note { position:sticky; top:calc(var(--topbar) + 34px); display:block; align-self:start; padding-top:.15rem; color:var(--muted); }
+  .focus-blog[data-variation="focus-margin"] .article-note > span { font-size:.45rem; letter-spacing:.14em; }
+  .focus-blog[data-variation="focus-margin"] .article-note dl { display:grid; gap:.8rem; margin:1.2rem 0 0; }
+  .focus-blog[data-variation="focus-margin"] .article-note dl div { display:grid; gap:.18rem; padding-top:.55rem; border-top:1px solid var(--line); }
+  .focus-blog[data-variation="focus-margin"] .article-note dt { font-size:.44rem; }
+  .focus-blog[data-variation="focus-margin"] .article-note dd { margin:0; color:var(--ink); font-size:.57rem; line-height:1.5; }
+  .focus-blog[data-variation="focus-margin"] .post-heading h1 { font-size:clamp(2.8rem,5.5vw,5.5rem); }
+
+  /* 05 — 동일한 집중 구조의 야간판 */
+  .focus-blog[data-variation="focus-night"] { --paper:#181816; --paper-side:#111110; --ink:#ece7dc; --muted:#918c82; --line:rgba(235,229,216,.13); --accent:#c9a77d; color-scheme:dark; }
+  .focus-blog[data-variation="focus-night"] .focus-topbar,
+  .focus-blog[data-variation="focus-night"] .reader-dock { background:color-mix(in srgb,var(--paper) 90%,transparent); }
+  .focus-blog[data-variation="focus-night"] .post-content { color:#d8d2c7; }
+  .focus-blog[data-variation="focus-night"] .post-content :global(a) { color:#c9a77d; }
+  .focus-blog[data-variation="focus-night"] .focus-post { width:min(700px,100%); }
+  .focus-blog[data-variation="focus-night"] .post-heading h1 { font-weight:560; }
+
+  @media (max-width: 1280px) and (min-width: 781px) {
+    .focus-blog[data-variation="focus-index"] { --left-rail:240px; --right-rail:0px; }
+    .focus-blog[data-variation="focus-index"] .focus-reader { margin:0; }
+    .focus-blog[data-variation="focus-index"] .variation-intro { left:calc(var(--left-rail) + 30px); }
+    .focus-blog[data-variation="focus-index"] .focus-post { width:min(620px,calc(100vw - 520px)); }
+    .focus-blog[data-variation="focus-index"] .reader-dock { right:auto; left:50%; width:min(620px,calc(100vw - 520px)); transform:translateX(-50%); }
+  }
+
+  .top-categories button:focus-visible,
+  .category-rail button:focus-visible,
+  .post-rail button:focus-visible,
+  .reader-buttons button:focus-visible,
+  .mobile-archive-toggle:focus-visible,
+  .focus-utility a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+
+  @media (max-width: 1080px) {
+    .focus-blog { --left-rail:175px; --right-rail:185px; }
+    .category-rail,
+    .post-rail { padding-inline:18px; }
+    .focus-blog[data-variation="focus-index"] { --left-rail:210px; --right-rail:0px; }
+    .focus-blog[data-variation="focus-margin"] .focus-post { grid-template-columns:110px minmax(0,620px); gap:28px; }
+  }
+
+  @media (max-width: 780px) {
+    .focus-blog,
+    .focus-blog[data-variation] { --topbar:112px; --left-rail:0px; --right-rail:0px; }
+    .focus-topbar { grid-template-columns:1fr auto; grid-template-rows:42px 54px; height:var(--topbar); padding:8px 16px; }
+    .focus-brand { grid-column:1; grid-row:1; padding:0; }
+    .focus-brand span,
+    .focus-utility span { display:none; }
+    .focus-utility { grid-column:2; grid-row:1; padding:0; }
+    .top-categories { grid-column:1/-1; grid-row:2; justify-content:flex-start; }
+    .category-rail,
+    .post-rail { display:none; }
+    .focus-reader,
+    .focus-blog[data-variation="focus-index"] .focus-reader { margin:0; }
+    .variation-intro,
+    .focus-blog[data-variation="focus-index"] .variation-intro { position:absolute; top:calc(var(--topbar) + 18px); left:18px; max-width:230px; }
+    .variation-intro p { display:none; }
+    .focus-viewport { padding:88px 22px 150px; }
+    .focus-post,
+    .focus-blog[data-variation] .focus-post { display:block; min-width:0; width:min(100%,650px); max-width:100%; }
+    .focus-blog[data-variation="focus-margin"] .article-note { display:none; }
+    .post-heading h1,
+    .focus-blog[data-variation] .post-heading h1 { max-width:10em; font-size:clamp(2.5rem,13vw,4.1rem); }
+    .post-content.post-body { margin-top:2.5rem; padding-bottom:7rem; font-size:.98rem; line-height:1.9; overflow-wrap:anywhere; }
+    .reader-dock,
+    .focus-blog[data-variation="focus-index"] .reader-dock { right:14px; bottom:12px; left:14px; width:auto; grid-template-columns:auto minmax(50px,1fr) auto; transform:none; }
+    .reader-dock > p:nth-of-type(2) { display:none; }
+    .reader-buttons button { width:36px; height:36px; }
+
+    .focus-blog[data-variation="focus-column"] .focus-viewport { padding-inline:36px; }
+    .focus-blog[data-variation="focus-column"] .post-heading h1 { max-width:8em; margin-inline:auto; text-align:center; }
+    .focus-blog[data-variation="focus-column"] .post-meta { justify-content:center; }
+    .focus-blog[data-variation="focus-column"] .post-meta span:last-child { display:none; }
+
+    .focus-blog[data-variation="focus-index"] { --topbar:60px; }
+    .focus-blog[data-variation="focus-index"] .focus-topbar { grid-template-columns:1fr auto; grid-template-rows:1fr; height:var(--topbar); padding:8px 16px; }
+    .focus-blog[data-variation="focus-index"] .focus-brand { grid-column:1; grid-row:1; }
+    .focus-blog[data-variation="focus-index"] .top-categories { display:none; }
+    .focus-blog[data-variation="focus-index"] .focus-utility { grid-column:2; grid-row:1; }
+    .focus-blog[data-variation="focus-index"] .mobile-archive-toggle { display:block; padding:.45rem .2rem; }
+    .focus-blog[data-variation="focus-index"] .category-rail { z-index:45; top:var(--topbar); display:grid; width:min(330px,88vw); padding:26px 20px 28px; box-shadow:18px 0 40px rgba(57,45,30,.14); transform:translateX(-105%); transition:transform .24s cubic-bezier(.2,.75,.2,1); }
+    .focus-blog[data-variation="focus-index"][data-archive-open="true"] .category-rail { transform:translateX(0); }
+    .focus-blog[data-variation="focus-index"] .category-accordion { overflow:auto; }
+    .focus-blog[data-variation="focus-index"] .focus-viewport { padding-top:72px; }
+    .focus-blog[data-variation="focus-index"] .post-heading h1 { font-size:clamp(2.2rem,11vw,3.5rem); }
+    .focus-blog[data-variation="focus-index"] .post-content.post-body { font-size:1.06rem; line-height:1.9; }
+
+    .focus-blog[data-variation="focus-margin"] .article-note { position:static; display:block; margin-bottom:30px; padding:12px 14px; border:1px solid var(--line); background:var(--paper-side); }
+    .focus-blog[data-variation="focus-margin"] .article-note > span { display:none; }
+    .focus-blog[data-variation="focus-margin"] .article-note dl { display:flex; justify-content:space-between; gap:.7rem; margin:0; }
+    .focus-blog[data-variation="focus-margin"] .article-note dl div { min-width:0; padding:0; border:0; }
+    .focus-blog[data-variation="focus-margin"] .article-note dd { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reader-progress span { transition:none; }
+  }
+</style>

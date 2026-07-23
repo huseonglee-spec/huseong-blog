@@ -1,0 +1,57 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const concepts = [
+  { id: "focus", number: "01", name: "고요한 양옆", description: "기존 조용한 집중 모드를 다듬은 기준안" },
+  { id: "focus-column", number: "02", name: "한 줄 독서실", description: "양옆 탐색을 얇게 줄이고 글 한 줄의 흐름을 강조한 안" },
+  { id: "focus-index", number: "03", name: "인덱스 독서실", description: "카테고리와 글 차례를 왼쪽 자료실에 모은 안" },
+  { id: "focus-margin", number: "04", name: "여백 노트", description: "본문 옆 여백에 분류와 읽기 정보를 남긴 안" },
+  { id: "focus-night", number: "05", name: "밤의 독서실", description: "같은 집중 구조를 낮은 대비의 야간 화면으로 옮긴 안" },
+] as const;
+---
+
+<BaseLayout
+  title="후성 블로그 조용한 집중 모드 시안 5종"
+  description="조용한 집중 모드를 기준으로 만든 후성 블로그 UI/UX 변주"
+  canonicalPath="/design-lab/"
+  robots="noindex, nofollow"
+>
+  <main class="design-index">
+    <header>
+      <a href="/">huseong.com</a>
+      <p>QUIET FOCUS VARIATIONS</p>
+      <h1>조용한 집중 모드,<br />다섯 가지 변주</h1>
+      <span>마음에 든 3번의 구조만 남기고, 여백·인덱스·읽기 정보·명암을 다르게 조율했습니다.</span>
+    </header>
+
+    <nav aria-label="전체 블로그 UI 시안">
+      {concepts.map((concept) => (
+        <a href={`/design-lab/${concept.id}/`}>
+          <span>{concept.number}</span>
+          <div><strong>{concept.name}</strong><p>{concept.description}</p></div>
+          <i aria-hidden="true">↗</i>
+        </a>
+      ))}
+    </nav>
+  </main>
+</BaseLayout>
+
+<style>
+  :global(body) { background:#e9dfcf; }
+  .design-index { display:grid; grid-template-columns:minmax(280px,.85fr) minmax(440px,1.15fr); min-height:100svh; }
+  .design-index > header { display:flex; flex-direction:column; justify-content:center; padding:clamp(40px,7vw,110px); border-right:1px solid var(--line); background:var(--paper); }
+  .design-index > header > a { align-self:flex-start; margin-bottom:auto; color:var(--ink); font-size:.78rem; font-weight:700; text-decoration:none; }
+  .design-index > header > p { margin:0 0 1rem; color:var(--ink-soft); font-size:.58rem; letter-spacing:.16em; }
+  .design-index h1 { margin:0; font-size:clamp(2rem,4.6vw,4.8rem); font-weight:650; line-height:1.2; letter-spacing:-.05em; }
+  .design-index > header > span { max-width:33rem; margin:1.5rem 0 auto; color:var(--ink-soft); font-size:.8rem; line-height:1.8; }
+  .design-index nav { display:grid; align-content:center; padding:clamp(24px,5vw,76px); }
+  .design-index nav a { display:grid; grid-template-columns:2.5rem minmax(0,1fr) auto; align-items:center; gap:1rem; padding:clamp(20px,3vh,32px) .5rem; border-bottom:1px solid rgba(65,52,38,.2); color:var(--ink); text-decoration:none; transition:padding .18s ease,background .18s ease; }
+  .design-index nav a:first-child { border-top:1px solid rgba(65,52,38,.2); }
+  .design-index nav a:hover { padding-inline:1rem; background:rgba(255,255,255,.23); }
+  .design-index nav a > span { color:var(--ink-soft); font-size:.58rem; font-variant-numeric:tabular-nums; }
+  .design-index nav strong { font-size:clamp(1.15rem,2vw,1.65rem); }
+  .design-index nav p { margin:.35rem 0 0; color:var(--ink-soft); font-size:.67rem; line-height:1.6; }
+  .design-index nav i { font-style:normal; }
+  @media(max-width:760px){ .design-index{display:block;min-height:100svh}.design-index>header{min-height:42svh;padding:24px 22px 34px;border-right:0;border-bottom:1px solid var(--line)}.design-index>header>a{margin-bottom:12vh}.design-index>header>span{margin-bottom:0}.design-index nav{padding:22px}.design-index nav a{padding-block:20px}.design-index nav p{font-size:.62rem} }
+  @media(prefers-reduced-motion:reduce){.design-index nav a{transition:none}}
+</style>

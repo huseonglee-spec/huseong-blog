@@ -1,5 +1,6 @@
 ---
 import type { BlogPost } from "../lib/posts";
+import { POST_VISIBILITIES, visibilityLabel } from "../lib/visibility";
 
 interface Props {
   post: BlogPost;
@@ -41,6 +42,19 @@ const endpoint = `/api/posts/${encodeURIComponent(post.id)}/`;
     value={post.data.category}
     autocomplete="off"
   />
+
+  <label class="visually-hidden" for={`edit-post-visibility-${post.id}`}>공개 범위</label>
+  <select
+    class="edit-post-visibility"
+    id={`edit-post-visibility-${post.id}`}
+    name="visibility"
+  >
+    {POST_VISIBILITIES.map((visibility) => (
+      <option value={visibility} selected={visibility === post.data.visibility}>
+        {visibilityLabel(visibility)}
+      </option>
+    ))}
+  </select>
 
   <label class="visually-hidden" for={`edit-post-body-${post.id}`}>본문</label>
   <textarea
@@ -161,6 +175,7 @@ const endpoint = `/api/posts/${encodeURIComponent(post.id)}/`;
   }
   .edit-post-title,
   .edit-post-category,
+  .edit-post-visibility,
   .edit-post-body {
     width: 100%;
     padding: 0;
@@ -172,6 +187,7 @@ const endpoint = `/api/posts/${encodeURIComponent(post.id)}/`;
   }
   .edit-post-title:focus-visible,
   .edit-post-category:focus-visible,
+  .edit-post-visibility:focus-visible,
   .edit-post-body:focus-visible {
     box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--link) 58%, transparent);
   }
@@ -183,9 +199,15 @@ const endpoint = `/api/posts/${encodeURIComponent(post.id)}/`;
     letter-spacing: -0.035em;
   }
   .edit-post-category {
-    margin: -1.3rem 0 2rem;
+    margin: -1.3rem 0 0.75rem;
     padding-bottom: 0.55rem;
     border-bottom: 1px solid var(--line);
+    color: var(--ink-soft);
+    font-size: 0.82rem;
+  }
+  .edit-post-visibility {
+    justify-self: start;
+    margin-bottom: 2rem;
     color: var(--ink-soft);
     font-size: 0.82rem;
   }

@@ -14,6 +14,7 @@ export async function updatePublishedPost(
     UPDATE posts
        SET title = ${fields.title},
            category_path = ${fields.category},
+           visibility = ${fields.visibility},
            body_markdown = ${fields.bodyMarkdown},
            updated_at = now()
      WHERE slug = ${slug}

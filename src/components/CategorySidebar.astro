@@ -6,9 +6,10 @@ interface Props {
   tree: CategoryNode[];
   postCount: number;
   selectedCategory?: string;
+  language?: "ko" | "en";
 }
 
-const { tree, postCount, selectedCategory } = Astro.props;
+const { tree, postCount, selectedCategory, language = "ko" } = Astro.props;
 ---
 
 <aside class="category-sidebar">
@@ -16,12 +17,12 @@ const { tree, postCount, selectedCategory } = Astro.props;
     <p class="category-tree__title">카테고리</p>
     <a
       class:list={["category-tree__all", { "is-active": !selectedCategory }]}
-      href="/"
+      href={language === "en" ? "/?lang=en" : "/"}
       aria-current={!selectedCategory ? "page" : undefined}
     >
       <span>전체 글</span>
       <span class="category-tree__count">{postCount}</span>
     </a>
-    <CategoryBranch nodes={tree} selectedCategory={selectedCategory} />
+    <CategoryBranch nodes={tree} selectedCategory={selectedCategory} language={language} />
   </nav>
 </aside>

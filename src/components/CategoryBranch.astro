@@ -6,9 +6,10 @@ import CategoryBranch from "./CategoryBranch.astro";
 interface Props {
   nodes: CategoryNode[];
   selectedCategory?: string;
+  language?: "ko" | "en";
 }
 
-const { nodes, selectedCategory } = Astro.props;
+const { nodes, selectedCategory, language = "ko" } = Astro.props;
 ---
 
 <ul class="category-tree__list">
@@ -17,14 +18,18 @@ const { nodes, selectedCategory } = Astro.props;
       <li class="category-tree__item">
         <a
           class:list={["category-tree__link", { "is-active": selectedCategory === node.path }]}
-          href={categoryHref(node.path)}
+          href={categoryHref(node.path, language)}
           aria-current={selectedCategory === node.path ? "page" : undefined}
         >
           <span>{node.name}</span>
           <span class="category-tree__count">{node.count}</span>
         </a>
         {node.children.length > 0 && (
-          <CategoryBranch nodes={node.children} selectedCategory={selectedCategory} />
+          <CategoryBranch
+            nodes={node.children}
+            selectedCategory={selectedCategory}
+            language={language}
+          />
         )}
       </li>
     ))

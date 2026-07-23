@@ -1,0 +1,16 @@
+---
+import HorizontalBlogDemo from "../components/HorizontalBlogDemo.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { getPublishedPosts } from "../lib/content";
+
+const posts = await getPublishedPosts();
+Astro.response.headers.set("Cache-Control", "no-store");
+---
+
+<BaseLayout
+  title="가로 읽기 UI 실험 · huseong.com"
+  description="후성 블로그의 글을 좌우로 넘겨 읽는 인터랙션 데모"
+  canonicalPath="/horizontal-demo/"
+>
+  <HorizontalBlogDemo posts={posts} />
+</BaseLayout>

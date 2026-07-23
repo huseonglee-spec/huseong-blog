@@ -5,7 +5,7 @@ import { parsePostFile } from "./post-file";
 describe("parsePostFile", () => {
   it("validates frontmatter and returns a database-ready post", () => {
     const post = parsePostFile(
-      `---\ntitle: 격일로 달리기\npublishedAt: 2026-07-13T10:26:22-04:00\ncategory: 건강 / 운동\ndraft: false\n---\n\n본문`,
+      `---\ntitle: 격일로 달리기\npublishedAt: 2026-07-13T10:26:22-04:00\ncategory: 건강 / 운동\nvisibility: friends\ndraft: false\n---\n\n본문`,
       "every-other-day-running.md",
     );
 
@@ -18,6 +18,7 @@ describe("parsePostFile", () => {
       thumbnailAlt: null,
       draft: false,
       category: "건강/운동",
+      visibility: "friends",
       bodyMarkdown: "본문",
     });
   });
@@ -38,5 +39,6 @@ describe("parsePostFile", () => {
     );
 
     expect(post.category).toBeUndefined();
+    expect(post.visibility).toBeUndefined();
   });
 });

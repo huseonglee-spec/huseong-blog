@@ -3,6 +3,10 @@ import path from "node:path";
 import matter from "gray-matter";
 
 import { normalizeCategoryPath } from "./categories";
+import {
+  normalizePostVisibility,
+  type PostVisibility,
+} from "./visibility";
 
 export interface WritablePost {
   slug: string;
@@ -13,6 +17,7 @@ export interface WritablePost {
   thumbnailAlt: string | null;
   draft: boolean;
   category?: string;
+  visibility?: PostVisibility;
   bodyMarkdown: string;
 }
 
@@ -62,6 +67,10 @@ export function parsePostFile(source: string, fileName: string): WritablePost {
       parsed.data.category === undefined
         ? undefined
         : normalizeCategoryPath(parsed.data.category),
+    visibility:
+      parsed.data.visibility === undefined
+        ? undefined
+        : normalizePostVisibility(parsed.data.visibility),
     bodyMarkdown,
   };
 }

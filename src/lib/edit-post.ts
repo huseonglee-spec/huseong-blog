@@ -1,4 +1,8 @@
 import { normalizeCategoryPath } from "./categories";
+import {
+  normalizePostVisibility,
+  type PostVisibility,
+} from "./visibility";
 
 const MAX_TITLE_LENGTH = 200;
 const MAX_BODY_BYTES = 512 * 1024;
@@ -8,12 +12,14 @@ export interface PostEditInput {
   title?: unknown;
   bodyMarkdown?: unknown;
   category?: unknown;
+  visibility?: unknown;
 }
 
 export interface EditablePostFields {
   title: string;
   bodyMarkdown: string;
   category: string;
+  visibility: PostVisibility;
 }
 
 export function normalizePostBodyMarkdown(value: string): string {
@@ -47,6 +53,7 @@ export function parsePostEditInput(input: PostEditInput): EditablePostFields {
   return {
     title,
     category: normalizeCategoryPath(input.category),
+    visibility: normalizePostVisibility(input.visibility),
     bodyMarkdown,
   };
 }

@@ -80,7 +80,8 @@ export function filterPostsByCategory(
   );
 }
 
-export function categoryHref(path: string): string {
+export function categoryHref(path: string, language?: "ko" | "en"): string {
   const params = new URLSearchParams({ category: path });
+  if (language === "en") params.set("lang", "en");
   return `/?${params.toString()}`;
 }
