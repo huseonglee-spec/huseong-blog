@@ -5,6 +5,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 import {
   getPublishedPosts,
   getPublishedPostTranslation,
+  getPublishedPostTranslationLocales,
 } from "../../lib/content";
 import {
   parsePostTranslationLocale,
@@ -12,15 +13,34 @@ import {
   type PostTranslationLocale,
 } from "../../lib/post-translation";
 import { postHref } from "../../lib/posts";
+import {
+  READER_LOCALE_COOKIE,
+  selectReaderLocalesByPost,
+} from "../../lib/reader-language";
 
 const activeSlug = Astro.params.slug;
 const session = Astro.locals.adminSession;
-const posts = await getPublishedPosts(Boolean(session));
+const includeRestricted = Boolean(session);
+Astro.response.headers.set("Cache-Control", "private, no-store");
+Astro.response.headers.set("Vary", "Accept-Language, Cookie");
+const [posts, availableTranslationLocalesByPost] = await Promise.all([
+  getPublishedPosts(includeRestricted),
+  getPublishedPostTranslationLocales(includeRestricted),
+]);
 const sourcePost = posts.find((post) => post.id === activeSlug);
 
 if (!sourcePost) {
   return Astro.redirect("/404/");
 }
+
+const savedReaderLocale = Astro.cookies.get(READER_LOCALE_COOKIE)?.value;
+const acceptLanguage = Astro.request.headers.get("accept-language");
+const readerLocaleByPost = selectReaderLocalesByPost(
+  posts.map((post) => post.id),
+  availableTranslationLocalesByPost,
+  savedReaderLocale,
+  acceptLanguage,
+);
 
 let activeTranslationLocale: PostTranslationLocale | undefined;
 const requestedLanguage = Astro.url.searchParams.get("lang");
@@ -30,13 +50,18 @@ if (requestedLanguage) {
   } catch {
     return Astro.redirect(postHref(sourcePost.id));
   }
+} else {
+  const preferredLocale = readerLocaleByPost[sourcePost.id] ?? "ko";
+  if (preferredLocale !== "ko") {
+    return Astro.redirect(postTranslationHref(sourcePost.id, preferredLocale));
+  }
 }
 
 const translatedPost = activeTranslationLocale
   ? await getPublishedPostTranslation(
       sourcePost.id,
       activeTranslationLocale,
-      Boolean(session),
+      includeRestricted,
     )
   : null;
 if (activeTranslationLocale && !translatedPost) {
@@ -47,7 +72,6 @@ const visiblePosts = posts.map((post) =>
   post.id === sourcePost.id ? activePost : post,
 );
 
-Astro.response.headers.set("Cache-Control", "no-store");
 const description = activePost.data.subtitle ?? activePost.data.title;
 ---
 
@@ -75,5 +99,7 @@ const description = activePost.data.subtitle ?? activePost.data.title;
     editCsrfToken={activeTranslationLocale ? undefined : session?.csrfToken}
     translationCsrfToken={activeTranslationLocale ? undefined : session?.csrfToken}
     activeTranslationLocale={activeTranslationLocale}
+    availableTranslationLocalesByPost={availableTranslationLocalesByPost}
+    readerLocaleByPost={readerLocaleByPost}
   />
 </BaseLayout>

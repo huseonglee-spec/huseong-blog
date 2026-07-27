@@ -19,6 +19,11 @@ interface PostRow {
   updated_at: string | Date;
 }
 
+interface PostTranslationLocaleRow {
+  post_slug: string;
+  locale: PostTranslationLocale;
+}
+
 function databaseUrl(): string {
   const value = getSecret("DATABASE_URL");
   if (!value) throw new Error("DATABASE_URL is not configured");
@@ -83,4 +88,25 @@ export async function getPublishedPostTranslation(
 
   const row = (rows as PostRow[])[0];
   return row ? mapRow(row) : null;
+}
+
+export async function getPublishedPostTranslationLocales(
+  includeRestricted = false,
+): Promise<Record<string, PostTranslationLocale[]>> {
+  const sql = neon(databaseUrl());
+  const rows = await sql`
+    SELECT p.slug AS post_slug, t.locale
+      FROM posts AS p
+      JOIN post_translations AS t ON t.post_slug = p.slug
+     WHERE p.draft = false
+       AND p.published_at <= now()
+       AND (${includeRestricted} OR p.visibility = 'public')
+     ORDER BY p.published_at DESC, p.slug ASC, t.locale ASC
+  `;
+
+  const localesByPost: Record<string, PostTranslationLocale[]> = {};
+  for (const row of rows as PostTranslationLocaleRow[]) {
+    (localesByPost[row.post_slug] ??= []).push(row.locale);
+  }
+  return localesByPost;
 }

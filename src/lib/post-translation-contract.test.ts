@@ -24,7 +24,9 @@ describe("새 언어판 발행 계약", () => {
     const source = await readFile(contentUrl, "utf8");
 
     expect(source).toContain("getPublishedPostTranslation");
+    expect(source).toContain("getPublishedPostTranslationLocales");
     expect(source).toContain("post_translations");
+    expect(source).toContain("SELECT p.slug AS post_slug, t.locale");
     expect(source).toContain("visibility = 'public'");
   });
 

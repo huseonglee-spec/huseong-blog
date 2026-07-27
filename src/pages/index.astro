@@ -4,16 +4,52 @@ import { randomUUID } from "node:crypto";
 import FocusBlogConcept from "../components/FocusBlogConcept.astro";
 import HomeActions from "../components/HomeActions.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { getPublishedPosts } from "../lib/content";
+import {
+  getPublishedPosts,
+  getPublishedPostTranslation,
+  getPublishedPostTranslationLocales,
+} from "../lib/content";
+import {
+  READER_LOCALE_COOKIE,
+  asPostTranslationLocale,
+  selectReaderLocalesByPost,
+} from "../lib/reader-language";
 
 const session = Astro.locals.adminSession;
-const posts = await getPublishedPosts(Boolean(session));
+const includeRestricted = Boolean(session);
+Astro.response.headers.set("Cache-Control", "private, no-store");
+Astro.response.headers.set("Vary", "Accept-Language, Cookie");
+const [sourcePosts, availableTranslationLocalesByPost] = await Promise.all([
+  getPublishedPosts(includeRestricted),
+  getPublishedPostTranslationLocales(includeRestricted),
+]);
+const savedReaderLocale = Astro.cookies.get(READER_LOCALE_COOKIE)?.value;
+const acceptLanguage = Astro.request.headers.get("accept-language");
+const readerLocaleByPost = selectReaderLocalesByPost(
+  sourcePosts.map((post) => post.id),
+  availableTranslationLocalesByPost,
+  savedReaderLocale,
+  acceptLanguage,
+);
+const initialSourcePost = sourcePosts[0];
+const activeTranslationLocale = initialSourcePost
+  ? asPostTranslationLocale(readerLocaleByPost[initialSourcePost.id] ?? "ko")
+  : undefined;
+const translatedInitialPost = initialSourcePost && activeTranslationLocale
+  ? await getPublishedPostTranslation(
+      initialSourcePost.id,
+      activeTranslationLocale,
+      includeRestricted,
+    )
+  : null;
+const posts = translatedInitialPost && initialSourcePost
+  ? sourcePosts.map((post) => post.id === initialSourcePost.id ? translatedInitialPost : post)
+  : sourcePosts;
 const composerOpen = Boolean(session) && Astro.url.searchParams.get("compose") === "1";
 const submissionId = session ? randomUUID() : undefined;
-Astro.response.headers.set("Cache-Control", "no-store");
 ---
 
-<BaseLayout>
+<BaseLayout language={activeTranslationLocale ?? "ko"}>
   {session && (
     <HomeActions
       authenticated
@@ -25,11 +61,15 @@ Astro.response.headers.set("Cache-Control", "no-store");
   <FocusBlogConcept
     posts={posts}
     variation="focus-index"
+    initialSlug={initialSourcePost?.id}
     authenticated={Boolean(session)}
     composerCsrfToken={session?.csrfToken}
     composerSubmissionId={submissionId}
     composerOpen={composerOpen}
-    editCsrfToken={session?.csrfToken}
-    translationCsrfToken={session?.csrfToken}
+    editCsrfToken={activeTranslationLocale ? undefined : session?.csrfToken}
+    translationCsrfToken={activeTranslationLocale ? undefined : session?.csrfToken}
+    activeTranslationLocale={activeTranslationLocale}
+    availableTranslationLocalesByPost={availableTranslationLocalesByPost}
+    readerLocaleByPost={readerLocaleByPost}
   />
 </BaseLayout>

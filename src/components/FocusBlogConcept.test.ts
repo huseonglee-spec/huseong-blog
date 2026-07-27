@@ -73,6 +73,20 @@ describe("FocusBlogConcept", () => {
     expect(source).toContain("window.location.reload()");
   });
 
+  it("글 제목 위에 실제 발행된 언어판만 텍스트 링크로 표시하고 직접 선택을 기억한다", async () => {
+    const source = await readFile(componentUrl, "utf8");
+
+    expect(source).toContain("availableTranslationLocalesByPost?:");
+    expect(source).toContain("readerLocaleByPost?:");
+    expect(source).toContain('class="reader-language-list"');
+    expect(source).toContain('aria-label="이 글의 언어판"');
+    expect(source).toContain("한국어");
+    expect(source).toContain("translationLocaleLabel");
+    expect(source).toContain("data-reader-language");
+    expect(source).toContain("READER_LOCALE_COOKIE");
+    expect(source).toContain("Max-Age=31536000");
+  });
+
   it("운영형 인덱스는 카테고리 안에 글을 넣은 아코디언으로 탐색한다", async () => {
     const source = await readFile(componentUrl, "utf8");
     const accordionMarkup = source.match(/<nav class="category-accordion"[\s\S]*?<\/nav>/)?.[0] ?? "";
@@ -125,20 +139,31 @@ describe("FocusBlogConcept", () => {
     expect(source).toContain('posts={posts}');
     expect(source).toContain('variation="focus-index"');
     expect(source).toContain('composerCsrfToken={session?.csrfToken}');
-    expect(source).toContain('editCsrfToken={session?.csrfToken}');
-    expect(source).toContain('translationCsrfToken={session?.csrfToken}');
+    expect(source).toContain('editCsrfToken={activeTranslationLocale ? undefined : session?.csrfToken}');
+    expect(source).toContain('translationCsrfToken={activeTranslationLocale ? undefined : session?.csrfToken}');
     expect(componentSource).toContain('import NewPostComposer from "./NewPostComposer.astro"');
     expect(componentSource).toContain('import EditPostForm from "./EditPostForm.astro"');
     expect(componentSource).toContain('import PostTranslationForm from "./PostTranslationForm.astro"');
   });
 
   it("개별 글 URL에서도 홈과 같은 인덱스 집중 UI로 해당 글을 연다", async () => {
-    const source = await readFile(permalinkPageUrl, "utf8");
+    const [source, homeSource] = await Promise.all([
+      readFile(permalinkPageUrl, "utf8"),
+      readFile(homePageUrl, "utf8"),
+    ]);
 
     expect(source).toContain('import FocusBlogConcept from "../../components/FocusBlogConcept.astro"');
     expect(source).not.toContain('import BlogFeed from "../../components/BlogFeed.astro"');
     expect(source).toContain('<FocusBlogConcept');
     expect(source).toContain('variation="focus-index"');
     expect(source).toContain('initialSlug={activePost.id}');
+    expect(source).toContain("selectReaderLocale");
+    expect(source).toContain('Astro.request.headers.get("accept-language")');
+    expect(source).toContain("Astro.cookies.get(READER_LOCALE_COOKIE)");
+    expect(source).toContain('Astro.response.headers.set("Cache-Control", "private, no-store")');
+    expect(source).toContain('Astro.response.headers.set("Vary", "Accept-Language, Cookie")');
+    expect(source).toContain("availableTranslationLocalesByPost=");
+    expect(homeSource).toContain("selectReaderLocale");
+    expect(homeSource).toContain("activeTranslationLocale=");
   });
 });

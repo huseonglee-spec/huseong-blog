@@ -22,8 +22,10 @@ describe("post visibility boundary", () => {
       readFile(sitemapUrl, "utf8"),
     ]);
 
-    expect(indexSource).toContain("getPublishedPosts(Boolean(session))");
-    expect(permalinkSource).toContain("getPublishedPosts(Boolean(session))");
+    expect(indexSource).toContain("const includeRestricted = Boolean(session)");
+    expect(indexSource).toContain("getPublishedPosts(includeRestricted)");
+    expect(permalinkSource).toContain("const includeRestricted = Boolean(session)");
+    expect(permalinkSource).toContain("getPublishedPosts(includeRestricted)");
     expect(sitemapSource).toContain("getPublishedPosts()");
     expect(sitemapSource).not.toContain("getPublishedPosts(true)");
   });

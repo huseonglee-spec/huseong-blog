@@ -4,8 +4,13 @@ import { postHref, type BlogPost } from "../lib/posts";
 import { renderPostMarkdown } from "../lib/markdown";
 import {
   postTranslationHref,
+  translationLocaleLabel,
   type PostTranslationLocale,
 } from "../lib/post-translation";
+import {
+  readerLocaleHref,
+  type ReaderLocale,
+} from "../lib/reader-language";
 import { visibilityLabel } from "../lib/visibility";
 import EditPostForm from "./EditPostForm.astro";
 import NewPostComposer from "./NewPostComposer.astro";
@@ -24,6 +29,8 @@ interface Props {
   editCsrfToken?: string;
   translationCsrfToken?: string;
   activeTranslationLocale?: PostTranslationLocale;
+  availableTranslationLocalesByPost?: Record<string, PostTranslationLocale[]>;
+  readerLocaleByPost?: Record<string, ReaderLocale>;
 }
 
 const {
@@ -37,6 +44,8 @@ const {
   editCsrfToken,
   translationCsrfToken,
   activeTranslationLocale,
+  availableTranslationLocalesByPost = {},
+  readerLocaleByPost = {},
 } = Astro.props;
 const renderedPosts = await Promise.all(
   posts.map(async (post) => ({
@@ -85,10 +94,18 @@ const requestedInitialIndex = initialSlug
   : 0;
 const initialIndex = requestedInitialIndex >= 0 ? requestedInitialIndex : 0;
 const initialCategory = posts[initialIndex]?.data.category ?? "";
+const renderedReaderLocale = (post: BlogPost): ReaderLocale =>
+  activeTranslationLocale && post.id === initialSlug
+    ? activeTranslationLocale
+    : "ko";
+const availableReaderLocales = (post: BlogPost): ReaderLocale[] => [
+  "ko",
+  ...(availableTranslationLocalesByPost[post.id] ?? []),
+];
 const readerPostHref = (post: BlogPost) =>
   activeTranslationLocale && post.id === initialSlug
     ? postTranslationHref(post.id, activeTranslationLocale)
-    : postHref(post.id);
+    : readerLocaleHref(post.id, readerLocaleByPost[post.id] ?? "ko");
 ---
 
 <div
@@ -248,6 +265,7 @@ const readerPostHref = (post: BlogPost) =>
               data-focus-post
               data-post={post.id}
               data-post-href={readerPostHref(post)}
+              data-rendered-language={renderedReaderLocale(post)}
               data-post-category={post.data.category}
               data-post-title={post.data.title}
               hidden={index !== initialIndex}
@@ -268,9 +286,7 @@ const readerPostHref = (post: BlogPost) =>
                       <span>{post.data.category.replaceAll("/", " · ")}</span>
                       <span class="focus-post-actions">
                         {editCsrfToken && <i>{visibilityLabel(post.data.visibility)}</i>}
-                        {activeTranslationLocale && post.id === initialSlug ? (
-                          <a href={postHref(post.id)}>한국어 원문</a>
-                        ) : (
+                        {!(activeTranslationLocale && post.id === initialSlug) && (
                           <>
                             {translationCsrfToken && (
                               <button
@@ -294,6 +310,23 @@ const readerPostHref = (post: BlogPost) =>
                         )}
                       </span>
                     </p>
+                    {availableReaderLocales(post).length > 1 && (
+                      <nav class="reader-language-list" aria-label="이 글의 언어판">
+                        {availableReaderLocales(post).map((locale) => (
+                          <a
+                            href={locale === "ko"
+                              ? postHref(post.id)
+                              : postTranslationHref(post.id, locale)}
+                            lang={locale}
+                            hreflang={locale}
+                            data-reader-language={locale}
+                            aria-current={locale === renderedReaderLocale(post) ? "page" : undefined}
+                          >
+                            {locale === "ko" ? "한국어" : translationLocaleLabel(locale)}
+                          </a>
+                        ))}
+                      </nav>
+                    )}
                     <h1>{post.data.title}</h1>
                     {post.data.subtitle && <p class="post-subtitle">{post.data.subtitle}</p>}
                   </header>
@@ -352,12 +385,15 @@ const readerPostHref = (post: BlogPost) =>
 </div>
 
 <script>
+  import { READER_LOCALE_COOKIE } from "../lib/reader-language";
+
   const root = document.querySelector<HTMLElement>("[data-focus-blog]");
   const reader = root?.querySelector<HTMLElement>("[data-focus-reader]");
 
   if (root && reader) {
     const posts = Array.from(root.querySelectorAll<HTMLElement>("[data-focus-post]"));
     const indexLinks = Array.from(root.querySelectorAll<HTMLAnchorElement>("[data-post-index-button]"));
+    const readerLanguageLinks = Array.from(root.querySelectorAll<HTMLAnchorElement>("[data-reader-language]"));
     const categoryButtons = Array.from(root.querySelectorAll<HTMLButtonElement>("[data-category-filter]"));
     const categoryLabels = Array.from(root.querySelectorAll<HTMLElement>("[data-active-category]"));
     const categoryCounts = Array.from(root.querySelectorAll<HTMLElement>("[data-active-category-count]"));
@@ -375,6 +411,9 @@ const readerPostHref = (post: BlogPost) =>
     let activePosition = Number(root.dataset.initialPostIndex ?? "0");
     let touchStartX = 0;
     let touchStartY = 0;
+
+    const localeFromHref = (href: string): string =>
+      new URL(href, window.location.origin).searchParams.get("lang") ?? "ko";
 
     const animationFrames = (direction: number): Keyframe[] => {
       const offset = direction >= 0 ? 22 : -22;
@@ -394,9 +433,18 @@ const readerPostHref = (post: BlogPost) =>
 
     const showPosition = (nextPosition: number, animate = true, updateUrl = true) => {
       const clamped = Math.max(0, Math.min(nextPosition, visibleIndexes.length - 1));
+      const postIndex = visibleIndexes[clamped] ?? 0;
+      const nextPost = posts[postIndex];
+      if (
+        updateUrl &&
+        nextPost?.dataset.postHref &&
+        localeFromHref(nextPost.dataset.postHref) !== (nextPost.dataset.renderedLanguage ?? "ko")
+      ) {
+        window.location.assign(nextPost.dataset.postHref);
+        return;
+      }
       const direction = clamped - activePosition;
       activePosition = clamped;
-      const postIndex = visibleIndexes[activePosition] ?? 0;
 
       posts.forEach((post, index) => { post.hidden = index !== postIndex; });
       indexLinks.forEach((link) => {
@@ -455,14 +503,24 @@ const readerPostHref = (post: BlogPost) =>
     indexLinks.forEach((link) => {
       link.addEventListener("click", (event) => {
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-        event.preventDefault();
         const postIndex = Number(link.dataset.postIndexButton);
+        const targetPost = posts[postIndex];
+        if (localeFromHref(link.href) !== (targetPost?.dataset.renderedLanguage ?? "ko")) return;
+        event.preventDefault();
         const position = visibleIndexes.indexOf(postIndex);
         if (position >= 0) {
           showPosition(position);
           root.dataset.archiveOpen = "false";
           mobileArchiveToggle?.setAttribute("aria-expanded", "false");
         }
+      });
+    });
+    readerLanguageLinks.forEach((link) => {
+      link.addEventListener("click", () => {
+        const locale = link.dataset.readerLanguage;
+        if (!locale) return;
+        const secure = window.location.protocol === "https:" ? "; Secure" : "";
+        document.cookie = `${READER_LOCALE_COOKIE}=${encodeURIComponent(locale)}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
       });
     });
     categoryToggles.forEach((button) => {
@@ -486,11 +544,8 @@ const readerPostHref = (post: BlogPost) =>
         ? posts.findIndex((post) => post.dataset.post === matchedSlug)
         : 0;
       if (postIndex < 0) return;
-      const currentLanguage = new URL(window.location.href).searchParams.get("lang");
-      const renderedHref = posts[postIndex]?.dataset.postHref;
-      const renderedLanguage = renderedHref
-        ? new URL(renderedHref, window.location.origin).searchParams.get("lang")
-        : null;
+      const currentLanguage = new URL(window.location.href).searchParams.get("lang") ?? "ko";
+      const renderedLanguage = posts[postIndex]?.dataset.renderedLanguage ?? "ko";
       if (currentLanguage !== renderedLanguage) {
         window.location.reload();
         return;
@@ -638,6 +693,12 @@ const readerPostHref = (post: BlogPost) =>
   .focus-post-actions a { padding:0; border:0; color:inherit; background:transparent; font:inherit; text-decoration:underline; text-underline-offset:.22em; cursor:pointer; }
   .focus-post-actions button:hover,
   .focus-post-actions a:hover { color:var(--ink); }
+  .reader-language-list { display:flex; flex-wrap:wrap; align-items:center; gap:0; margin:0 0 .95rem; color:var(--muted); font-size:.68rem; letter-spacing:.015em; }
+  .reader-language-list a { color:inherit; text-decoration:none; text-underline-offset:.24em; }
+  .reader-language-list a + a::before { content:"·"; display:inline-block; margin:0 .55rem; color:color-mix(in srgb,var(--muted) 58%,transparent); }
+  .reader-language-list a:hover,
+  .reader-language-list a[aria-current="page"] { color:var(--ink); text-decoration:underline; }
+  .reader-language-list a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
   .post-heading h1 { max-width:11em; margin:0; font-size:clamp(3rem,6.3vw,6.2rem); font-weight:650; line-height:1.1; letter-spacing:-.055em; text-wrap:balance; }
   .post-subtitle { max-width:36rem; margin:1.15rem 0 0; color:var(--muted); font-size:.92rem; line-height:1.7; }
   .post-content { color:color-mix(in srgb,var(--ink) 91%,transparent); }
