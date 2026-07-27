@@ -1,4 +1,5 @@
 ---
+import { renderPostMarkdown } from "../lib/markdown";
 import {
   POST_TRANSLATION_LOCALES,
   translationLocaleLabel,
@@ -12,6 +13,7 @@ interface Props {
 
 const { post, csrfToken } = Astro.props;
 const endpoint = `/api/posts/${encodeURIComponent(post.id)}/translations/`;
+const { html: sourceHtml } = await renderPostMarkdown(post.bodyMarkdown);
 ---
 
 <form
@@ -24,49 +26,62 @@ const endpoint = `/api/posts/${encodeURIComponent(post.id)}/translations/`;
 >
   <input type="hidden" name="csrfToken" value={csrfToken} />
 
-  <header class="translation-form-header">
-    <span>새 언어판</span>
-    <strong>{post.data.title}</strong>
-  </header>
+  <div class="translation-workspace">
+    <aside class="translation-source" lang="ko" aria-label="한국어 원문">
+      <header class="translation-source-header">
+        <span>한국어 원문</span>
+        <h2>{post.data.title}</h2>
+        {post.data.subtitle && <p>{post.data.subtitle}</p>}
+      </header>
+      <div class="translation-source-body post-body" set:html={sourceHtml} />
+    </aside>
 
-  <label class="translation-field" for={`translation-locale-${post.id}`}>
-    <span>언어</span>
-    <select id={`translation-locale-${post.id}`} name="locale" required>
-      {POST_TRANSLATION_LOCALES.map((locale) => (
-        <option value={locale}>{translationLocaleLabel(locale)}</option>
-      ))}
-    </select>
-  </label>
+    <section class="translation-editor" aria-label="새 언어판 작성">
+      <header class="translation-form-header">
+        <span>새 언어판</span>
+        <strong>번역해서 바로 발행</strong>
+      </header>
 
-  <label class="translation-field" for={`translation-title-${post.id}`}>
-    <span>번역 제목</span>
-    <input
-      id={`translation-title-${post.id}`}
-      name="title"
-      type="text"
-      maxlength="200"
-      autocomplete="off"
-      required
-    />
-  </label>
+      <label class="translation-field" for={`translation-locale-${post.id}`}>
+        <span>언어</span>
+        <select id={`translation-locale-${post.id}`} name="locale" required>
+          {POST_TRANSLATION_LOCALES.map((locale) => (
+            <option value={locale}>{translationLocaleLabel(locale)}</option>
+          ))}
+        </select>
+      </label>
 
-  <label class="translation-field" for={`translation-body-${post.id}`}>
-    <span>번역 본문 · Markdown</span>
-    <textarea
-      id={`translation-body-${post.id}`}
-      name="bodyMarkdown"
-      maxlength="170000"
-      required
-    ></textarea>
-  </label>
+      <label class="translation-field" for={`translation-title-${post.id}`}>
+        <span>번역 제목</span>
+        <input
+          id={`translation-title-${post.id}`}
+          name="title"
+          type="text"
+          maxlength="200"
+          autocomplete="off"
+          required
+        />
+      </label>
 
-  <footer class="translation-form-footer">
-    <p data-translation-status aria-live="polite"></p>
-    <div>
-      <button type="button" class="text-button" data-cancel-translation>취소</button>
-      <button type="submit" class="publish-button">언어판 발행</button>
-    </div>
-  </footer>
+      <label class="translation-field" for={`translation-body-${post.id}`}>
+        <span>번역 본문 · Markdown</span>
+        <textarea
+          id={`translation-body-${post.id}`}
+          name="bodyMarkdown"
+          maxlength="170000"
+          required
+        ></textarea>
+      </label>
+
+      <footer class="translation-form-footer">
+        <p data-translation-status aria-live="polite"></p>
+        <div>
+          <button type="button" class="text-button" data-cancel-translation>취소</button>
+          <button type="submit" class="publish-button">언어판 발행</button>
+        </div>
+      </footer>
+    </section>
+  </div>
 </form>
 
 <script>
@@ -149,11 +164,20 @@ const endpoint = `/api/posts/${encodeURIComponent(post.id)}/translations/`;
 </script>
 
 <style>
-  .post-translation-form { display:grid; gap:1.8rem; width:100%; }
+  .post-translation-form { width:100%; }
   .post-translation-form[hidden] { display:none; }
-  .translation-form-header { display:grid; gap:.5rem; padding-bottom:1rem; border-bottom:1px solid var(--line); }
+  .translation-workspace { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:clamp(2.2rem,4vw,4rem); align-items:start; }
+  .translation-source { position:sticky; top:2rem; max-height:calc(100svh - 4rem); padding-right:clamp(1.4rem,3vw,2.6rem); overflow-y:auto; border-right:1px solid var(--line); scrollbar-width:none; }
+  .translation-source::-webkit-scrollbar { display:none; }
+  .translation-source-header { padding-bottom:1.2rem; border-bottom:1px solid var(--line); }
+  .translation-source-header > span,
   .translation-form-header span,
   .translation-field > span { color:var(--muted, var(--ink-soft)); font-size:.65rem; }
+  .translation-source-header h2 { margin:.65rem 0 0; font-size:clamp(1.45rem,2.8vw,2.15rem); line-height:1.3; letter-spacing:-.035em; }
+  .translation-source-header p { margin:.65rem 0 0; color:var(--muted, var(--ink-soft)); font-size:.82rem; line-height:1.65; }
+  .translation-source-body.post-body { margin-top:1.7rem; padding-bottom:2rem; font-size:.92rem; line-height:1.85; }
+  .translation-editor { display:grid; min-width:0; gap:1.8rem; }
+  .translation-form-header { display:grid; gap:.5rem; padding-bottom:1rem; border-bottom:1px solid var(--line); }
   .translation-form-header strong { font-size:1rem; font-weight:600; }
   .translation-field { display:grid; gap:.55rem; }
   .translation-field select,
@@ -168,7 +192,7 @@ const endpoint = `/api/posts/${encodeURIComponent(post.id)}/translations/`;
     background:transparent;
     font:inherit;
   }
-  .translation-field input { font-size:clamp(1.72rem,5vw,2.55rem); font-weight:650; line-height:1.42; letter-spacing:-.035em; }
+  .translation-field input { font-size:clamp(1.45rem,3vw,2.1rem); font-weight:650; line-height:1.42; letter-spacing:-.035em; }
   .translation-field textarea { min-height:50vh; border-bottom:0; resize:none; font-size:clamp(1rem,2.15vw,1.08rem); line-height:1.9; }
   .translation-field select:focus-visible,
   .translation-field input:focus-visible,
@@ -181,6 +205,12 @@ const endpoint = `/api/posts/${encodeURIComponent(post.id)}/translations/`;
   .text-button { color:var(--ink); background:transparent; }
   .publish-button { color:var(--paper, var(--sheet)); background:var(--ink); }
   .translation-form-footer button:disabled { cursor:wait; opacity:.6; }
+
+  @media (max-width:780px) {
+    .translation-workspace { grid-template-columns:1fr; gap:2.4rem; }
+    .translation-source { position:static; max-height:42svh; padding:0 0 1.4rem; border-right:0; border-bottom:1px solid var(--line); }
+    .translation-source-body.post-body { padding-bottom:.5rem; }
+  }
 
   @media (max-width:560px) {
     .translation-form-footer { align-items:flex-end; flex-direction:column; }
