@@ -1,0 +1,187 @@
+---
+import {
+  POST_TRANSLATION_LOCALES,
+  translationLocaleLabel,
+} from "../lib/post-translation";
+import type { BlogPost } from "../lib/posts";
+
+interface Props {
+  post: BlogPost;
+  csrfToken: string;
+}
+
+const { post, csrfToken } = Astro.props;
+const endpoint = `/api/posts/${encodeURIComponent(post.id)}/translations/`;
+---
+
+<form
+  class="post-translation-form"
+  id={`translate-post-${post.id}`}
+  action={endpoint}
+  data-post-translation-form
+  hidden
+>
+  <input type="hidden" name="csrfToken" value={csrfToken} />
+
+  <header class="translation-form-header">
+    <span>새 언어판</span>
+    <strong>{post.data.title}</strong>
+  </header>
+
+  <label class="translation-field" for={`translation-locale-${post.id}`}>
+    <span>언어</span>
+    <select id={`translation-locale-${post.id}`} name="locale" required>
+      {POST_TRANSLATION_LOCALES.map((locale) => (
+        <option value={locale}>{translationLocaleLabel(locale)}</option>
+      ))}
+    </select>
+  </label>
+
+  <label class="translation-field" for={`translation-title-${post.id}`}>
+    <span>번역 제목</span>
+    <input
+      id={`translation-title-${post.id}`}
+      name="title"
+      type="text"
+      maxlength="200"
+      autocomplete="off"
+      required
+    />
+  </label>
+
+  <label class="translation-field" for={`translation-body-${post.id}`}>
+    <span>번역 본문 · Markdown</span>
+    <textarea
+      id={`translation-body-${post.id}`}
+      name="bodyMarkdown"
+      maxlength="170000"
+      required
+    ></textarea>
+  </label>
+
+  <footer class="translation-form-footer">
+    <p data-translation-status aria-live="polite"></p>
+    <div>
+      <button type="button" class="text-button" data-cancel-translation>취소</button>
+      <button type="submit" class="publish-button">언어판 발행</button>
+    </div>
+  </footer>
+</form>
+
+<script>
+  document.querySelectorAll<HTMLFormElement>("[data-post-translation-form]").forEach((form) => {
+    if (form.dataset.ready === "true") return;
+    form.dataset.ready = "true";
+
+    const article = form.closest<HTMLElement>("[data-post]");
+    const display = article?.querySelector<HTMLElement>("[data-post-display]");
+    const trigger = article?.querySelector<HTMLButtonElement>("[data-add-translation]");
+    const locale = form.querySelector<HTMLSelectElement>("[name=locale]");
+    const body = form.querySelector<HTMLTextAreaElement>("[name=bodyMarkdown]");
+    const status = form.querySelector<HTMLElement>("[data-translation-status]");
+    const submitButton = form.querySelector<HTMLButtonElement>("[type=submit]");
+    const cancelButton = form.querySelector<HTMLButtonElement>("[data-cancel-translation]");
+    let submitting = false;
+
+    const resizeBody = () => {
+      if (!body || form.hidden) return;
+      body.style.height = "auto";
+      body.style.height = `${Math.max(body.scrollHeight, window.innerHeight * 0.5)}px`;
+    };
+
+    trigger?.addEventListener("click", () => {
+      if (!display) return;
+      display.hidden = true;
+      form.hidden = false;
+      trigger.setAttribute("aria-expanded", "true");
+      resizeBody();
+      locale?.focus();
+    });
+
+    body?.addEventListener("input", resizeBody);
+
+    cancelButton?.addEventListener("click", () => {
+      if (submitting || !display) return;
+      form.hidden = true;
+      display.hidden = false;
+      trigger?.setAttribute("aria-expanded", "false");
+      trigger?.focus();
+    });
+
+    form.addEventListener("keydown", (event) => {
+      if (!submitting && (event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault();
+        form.requestSubmit();
+      }
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (submitting || !submitButton || !status) return;
+
+      submitting = true;
+      submitButton.disabled = true;
+      if (cancelButton) cancelButton.disabled = true;
+      status.dataset.error = "false";
+      status.textContent = "발행 중…";
+
+      try {
+        const response = await fetch(form.action, {
+          method: "POST",
+          body: new FormData(form),
+          headers: { Accept: "application/json" },
+        });
+        const result = await response.json() as { error?: string; location?: string };
+        if (!response.ok || !result.location) {
+          throw new Error(result.error ?? "언어판을 발행하지 못했습니다.");
+        }
+        window.location.assign(result.location);
+      } catch (error) {
+        status.dataset.error = "true";
+        status.textContent = error instanceof Error ? error.message : "언어판을 발행하지 못했습니다.";
+        submitting = false;
+        submitButton.disabled = false;
+        if (cancelButton) cancelButton.disabled = false;
+      }
+    });
+  });
+</script>
+
+<style>
+  .post-translation-form { display:grid; gap:1.8rem; width:100%; }
+  .post-translation-form[hidden] { display:none; }
+  .translation-form-header { display:grid; gap:.5rem; padding-bottom:1rem; border-bottom:1px solid var(--line); }
+  .translation-form-header span,
+  .translation-field > span { color:var(--muted, var(--ink-soft)); font-size:.65rem; }
+  .translation-form-header strong { font-size:1rem; font-weight:600; }
+  .translation-field { display:grid; gap:.55rem; }
+  .translation-field select,
+  .translation-field input,
+  .translation-field textarea {
+    width:100%;
+    padding:.8rem 0;
+    border:0;
+    border-bottom:1px solid var(--line);
+    outline:0;
+    color:var(--ink);
+    background:transparent;
+    font:inherit;
+  }
+  .translation-field input { font-size:clamp(1.72rem,5vw,2.55rem); font-weight:650; line-height:1.42; letter-spacing:-.035em; }
+  .translation-field textarea { min-height:50vh; border-bottom:0; resize:none; font-size:clamp(1rem,2.15vw,1.08rem); line-height:1.9; }
+  .translation-field select:focus-visible,
+  .translation-field input:focus-visible,
+  .translation-field textarea:focus-visible { box-shadow:inset 0 -2px 0 color-mix(in srgb,var(--accent, var(--link)) 58%,transparent); }
+  .translation-form-footer { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding-top:1rem; border-top:1px solid var(--line); }
+  .translation-form-footer p { min-height:1.5em; margin:0; color:var(--muted, var(--ink-soft)); font-size:.8rem; }
+  .translation-form-footer p[data-error="true"] { color:#9a3e2e; }
+  .translation-form-footer div { display:flex; align-items:center; gap:.8rem; }
+  .translation-form-footer button { padding:.45rem .85rem; border:1px solid var(--ink); border-radius:2px; font:inherit; font-size:.82rem; cursor:pointer; }
+  .text-button { color:var(--ink); background:transparent; }
+  .publish-button { color:var(--paper, var(--sheet)); background:var(--ink); }
+  .translation-form-footer button:disabled { cursor:wait; opacity:.6; }
+
+  @media (max-width:560px) {
+    .translation-form-footer { align-items:flex-end; flex-direction:column; }
+  }
+</style>

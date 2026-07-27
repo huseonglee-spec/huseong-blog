@@ -24,9 +24,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
     }
   }
 
-  if (routeKind === "page" && !context.locals.adminSession) {
-    return context.redirect("/admin/login/", 303);
-  }
   if (routeKind === "api" && !context.locals.adminSession) {
     return new Response(JSON.stringify({ error: "로그인이 필요합니다." }), {
       status: 401,

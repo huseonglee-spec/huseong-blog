@@ -5,6 +5,7 @@ const componentUrl = new URL("./FocusBlogConcept.astro", import.meta.url);
 const indexPageUrl = new URL("../pages/design-lab.astro", import.meta.url);
 const conceptPageUrl = new URL("../pages/design-lab/[concept].astro", import.meta.url);
 const homePageUrl = new URL("../pages/index.astro", import.meta.url);
+const permalinkPageUrl = new URL("../pages/posts/[slug].astro", import.meta.url);
 const variations = ["focus", "focus-column", "focus-index", "focus-margin", "focus-night"];
 
 describe("FocusBlogConcept", () => {
@@ -54,15 +55,34 @@ describe("FocusBlogConcept", () => {
     expect(source).toContain('addEventListener("touchend"');
   });
 
-  it("운영형 인덱스는 카테고리 안에 글을 넣은 아코디언으로 탐색한다", async () => {
+  it("각 글을 고유 URL로 연결하고 뒤로가기로 선택 상태를 복원한다", async () => {
     const source = await readFile(componentUrl, "utf8");
 
+    expect(source).toContain('import { postHref, type BlogPost } from "../lib/posts"');
+    expect(source).toContain("initialSlug?: string");
+    expect(source).toContain("href={postHref(post.id)}");
+    expect(source).toContain("window.history.pushState");
+    expect(source).toContain('window.addEventListener("popstate"');
+  });
+
+  it("운영형 인덱스는 카테고리 안에 글을 넣은 아코디언으로 탐색한다", async () => {
+    const source = await readFile(componentUrl, "utf8");
+    const accordionMarkup = source.match(/<nav class="category-accordion"[\s\S]*?<\/nav>/)?.[0] ?? "";
+
     expect(source).toContain("data-category-accordion");
+    expect(source).not.toContain('isActualPreview ? "카테고리" : "생각의 갈래"');
+    expect(source).toContain('data-accordion-category="__all__"');
+    expect(source).toContain("<strong>전체 글 보기</strong>");
+    expect(source).toContain("data-all-posts");
+    expect(accordionMarkup).not.toContain('String(index + 1).padStart(2, "0")');
+    expect(source).toMatch(/\.category-accordion\s*\{[^}]*scrollbar-width:none/);
+    expect(source).toContain(".category-accordion::-webkit-scrollbar");
     expect(source).toContain("data-category-toggle");
     expect(source).toContain("data-accordion-posts");
     expect(source).toContain("data-mobile-archive-toggle");
     expect(source).toContain('class="sidebar-login" href="/admin/login/"');
-    expect(source).toContain('class="actual-mobile-controls"');
+    expect(source).toContain('"actual-mobile-controls"');
+    expect(source).toContain('"actual-mobile-controls--authenticated": authenticated');
     expect(source).toContain('aria-expanded="false"');
     expect(source).not.toContain("candidate === group && willExpand");
     expect(source).toContain('!isActualPreview && (\n        <footer class="reader-dock"');
@@ -78,10 +98,39 @@ describe("FocusBlogConcept", () => {
     expect(source).toContain("@media (prefers-reduced-motion: reduce)");
   });
 
-  it("공개 홈에서는 확정한 인덱스 집중 모드를 사용한다", async () => {
-    const source = await readFile(homePageUrl, "utf8");
+  it("운영형 인덱스의 글 제목을 데스크톱과 모바일에서 작게 유지한다", async () => {
+    const source = await readFile(componentUrl, "utf8");
+
+    expect(source).toContain("font-size:clamp(1.75rem,3vw,3rem)");
+    expect(source).toContain("font-size:clamp(1.7rem,8vw,2.6rem)");
+  });
+
+  it("로그인 여부와 무관하게 홈에서 확정한 인덱스 집중 모드를 사용한다", async () => {
+    const [componentSource, source] = await Promise.all([
+      readFile(componentUrl, "utf8"),
+      readFile(homePageUrl, "utf8"),
+    ]);
 
     expect(source).toContain('import FocusBlogConcept from "../components/FocusBlogConcept.astro"');
-    expect(source).toContain('<FocusBlogConcept posts={posts} variation="focus-index" />');
+    expect(source).not.toContain('import BlogFeed from "../components/BlogFeed.astro"');
+    expect(source).toContain('<FocusBlogConcept');
+    expect(source).toContain('posts={posts}');
+    expect(source).toContain('variation="focus-index"');
+    expect(source).toContain('composerCsrfToken={session?.csrfToken}');
+    expect(source).toContain('editCsrfToken={session?.csrfToken}');
+    expect(source).toContain('translationCsrfToken={session?.csrfToken}');
+    expect(componentSource).toContain('import NewPostComposer from "./NewPostComposer.astro"');
+    expect(componentSource).toContain('import EditPostForm from "./EditPostForm.astro"');
+    expect(componentSource).toContain('import PostTranslationForm from "./PostTranslationForm.astro"');
+  });
+
+  it("개별 글 URL에서도 홈과 같은 인덱스 집중 UI로 해당 글을 연다", async () => {
+    const source = await readFile(permalinkPageUrl, "utf8");
+
+    expect(source).toContain('import FocusBlogConcept from "../../components/FocusBlogConcept.astro"');
+    expect(source).not.toContain('import BlogFeed from "../../components/BlogFeed.astro"');
+    expect(source).toContain('<FocusBlogConcept');
+    expect(source).toContain('variation="focus-index"');
+    expect(source).toContain('initialSlug={activePost.id}');
   });
 });

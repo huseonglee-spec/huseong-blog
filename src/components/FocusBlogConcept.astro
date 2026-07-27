@@ -1,16 +1,40 @@
 ---
-import type { BlogPost } from "../lib/posts";
+import { postHref, type BlogPost } from "../lib/posts";
 
 import { renderPostMarkdown } from "../lib/markdown";
+import type { PostTranslationLocale } from "../lib/post-translation";
+import { visibilityLabel } from "../lib/visibility";
+import EditPostForm from "./EditPostForm.astro";
+import NewPostComposer from "./NewPostComposer.astro";
+import PostTranslationForm from "./PostTranslationForm.astro";
 
 export type FocusVariation = "focus" | "focus-column" | "focus-index" | "focus-margin" | "focus-night";
 
 interface Props {
   posts: BlogPost[];
   variation: FocusVariation;
+  initialSlug?: string;
+  authenticated?: boolean;
+  composerCsrfToken?: string;
+  composerSubmissionId?: string;
+  composerOpen?: boolean;
+  editCsrfToken?: string;
+  translationCsrfToken?: string;
+  activeTranslationLocale?: PostTranslationLocale;
 }
 
-const { posts, variation } = Astro.props;
+const {
+  posts,
+  variation,
+  initialSlug,
+  authenticated = false,
+  composerCsrfToken,
+  composerSubmissionId,
+  composerOpen = false,
+  editCsrfToken,
+  translationCsrfToken,
+  activeTranslationLocale,
+} = Astro.props;
 const renderedPosts = await Promise.all(
   posts.map(async (post) => ({
     post,
@@ -53,7 +77,11 @@ const variationInfo = {
 } as const;
 const info = variationInfo[variation];
 const isActualPreview = variation === "focus-index";
-const initialCategory = posts[0]?.data.category ?? "";
+const requestedInitialIndex = initialSlug
+  ? renderedPosts.findIndex(({ post }) => post.id === initialSlug)
+  : 0;
+const initialIndex = requestedInitialIndex >= 0 ? requestedInitialIndex : 0;
+const initialCategory = posts[initialIndex]?.data.category ?? "";
 ---
 
 <div
@@ -62,6 +90,7 @@ const initialCategory = posts[0]?.data.category ?? "";
   data-document-scroll
   data-variation={variation}
   data-post-count={renderedPosts.length}
+  data-initial-post-index={initialIndex}
 >
   {!isActualPreview ? (
     <header class="focus-topbar">
@@ -87,22 +116,49 @@ const initialCategory = posts[0]?.data.category ?? "";
       </div>
     </header>
   ) : (
-    <nav class="actual-mobile-controls" aria-label="모바일 메뉴">
+    <nav
+      class:list={[
+        "actual-mobile-controls",
+        { "actual-mobile-controls--authenticated": authenticated },
+      ]}
+      aria-label="모바일 메뉴"
+    >
       <button type="button" class="mobile-archive-toggle" data-mobile-archive-toggle aria-expanded="false">글 탐색</button>
-      <a href="/admin/login/">로그인</a>
+      {!authenticated && <a href="/admin/login/">로그인</a>}
     </nav>
   )}
 
   {renderedPosts.length > 0 ? (
     <div class="focus-shell">
       <aside class="category-rail" aria-label="카테고리 디렉터리">
-        <header>
-          {!isActualPreview && <span>SECTIONS</span>}
-          <strong>{isActualPreview ? "카테고리" : "생각의 갈래"}</strong>
-        </header>
+        {!isActualPreview && (
+          <header>
+            <span>SECTIONS</span>
+            <strong>생각의 갈래</strong>
+          </header>
+        )}
 
         {isActualPreview ? (
           <nav class="category-accordion" data-category-accordion aria-label="카테고리별 글">
+            <section class="accordion-group" data-accordion-category="__all__" data-all-posts>
+              <button type="button" class="category-toggle" data-category-toggle aria-expanded="false">
+                <strong>전체 글 보기</strong>
+                <b>{posts.length}</b>
+                <span class="accordion-chevron" aria-hidden="true"></span>
+              </button>
+              <div class="accordion-posts" data-accordion-posts hidden>
+                {renderedPosts.map(({ post }, index) => (
+                  <a
+                    href={postHref(post.id)}
+                    data-post-index-button={index}
+                    data-post-category={post.data.category}
+                    aria-current={index === initialIndex ? "page" : undefined}
+                  >
+                    <i>{post.data.title}</i>
+                  </a>
+                ))}
+              </div>
+            </section>
             {categoryDirectory.map(({ category, segments, count }) => {
               const expanded = category === initialCategory;
               return (
@@ -114,15 +170,14 @@ const initialCategory = posts[0]?.data.category ?? "";
                   </button>
                   <div class="accordion-posts" data-accordion-posts hidden={!expanded}>
                     {renderedPosts.map(({ post }, index) => post.data.category === category && (
-                      <button
-                        type="button"
+                      <a
+                        href={postHref(post.id)}
                         data-post-index-button={index}
                         data-post-category={post.data.category}
-                        aria-current={index === 0 ? "true" : undefined}
+                        aria-current={index === initialIndex ? "page" : undefined}
                       >
-                        <span>{String(index + 1).padStart(2, "0")}</span>
                         <i>{post.data.title}</i>
-                      </button>
+                      </a>
                     ))}
                   </div>
                 </section>
@@ -148,7 +203,7 @@ const initialCategory = posts[0]?.data.category ?? "";
         )}
 
         {isActualPreview ? (
-          <a class="sidebar-login" href="/admin/login/">로그인</a>
+          !authenticated && <a class="sidebar-login" href="/admin/login/">로그인</a>
         ) : (
           <footer>
             <span>현재 분류</span>
@@ -169,35 +224,79 @@ const initialCategory = posts[0]?.data.category ?? "";
           </header>
         )}
 
+        {composerCsrfToken && composerSubmissionId && (
+          <NewPostComposer
+            csrfToken={composerCsrfToken}
+            submissionId={composerSubmissionId}
+            open={composerOpen}
+            categoryPaths={categories}
+          />
+        )}
+
         <section class="focus-viewport" aria-label="선택한 글">
           {renderedPosts.map(({ post, html, readingMinutes }, index) => (
             <article
+              id={`post-${post.id}`}
               class="focus-post"
               data-focus-post
+              data-post={post.id}
+              data-post-href={postHref(post.id)}
               data-post-category={post.data.category}
               data-post-title={post.data.title}
-              hidden={index !== 0}
+              hidden={index !== initialIndex}
             >
-              <aside class="article-note" aria-label="글 정보">
-                <span>NOTE</span>
-                <dl>
-                  <div><dt>분류</dt><dd>{post.data.category.replaceAll("/", " · ")}</dd></div>
-                  <div><dt>위치</dt><dd>{String(index + 1).padStart(2, "0")} / {String(posts.length).padStart(2, "0")}</dd></div>
-                  <div><dt>읽기</dt><dd>약 {readingMinutes}분</dd></div>
-                </dl>
-              </aside>
+              <div class="focus-post-display" data-post-display>
+                <aside class="article-note" aria-label="글 정보">
+                  <span>NOTE</span>
+                  <dl>
+                    <div><dt>분류</dt><dd>{post.data.category.replaceAll("/", " · ")}</dd></div>
+                    <div><dt>위치</dt><dd>{String(index + 1).padStart(2, "0")} / {String(posts.length).padStart(2, "0")}</dd></div>
+                    <div><dt>읽기</dt><dd>약 {readingMinutes}분</dd></div>
+                  </dl>
+                </aside>
 
-              <div class="focus-copy">
-                <header class="post-heading">
-                  <p class="post-meta">
-                    <span>{post.data.category.replaceAll("/", " · ")}</span>
-                    {!isActualPreview && <span>{String(index + 1).padStart(2, "0")}</span>}
-                  </p>
-                  <h1>{post.data.title}</h1>
-                  {post.data.subtitle && <p class="post-subtitle">{post.data.subtitle}</p>}
-                </header>
-                <div class="post-content post-body" set:html={html} />
+                <div class="focus-copy">
+                  <header class="post-heading">
+                    <p class="post-meta">
+                      <span>{post.data.category.replaceAll("/", " · ")}</span>
+                      <span class="focus-post-actions">
+                        {editCsrfToken && <i>{visibilityLabel(post.data.visibility)}</i>}
+                        {activeTranslationLocale && post.id === initialSlug ? (
+                          <a href={postHref(post.id)}>한국어 원문</a>
+                        ) : (
+                          <>
+                            {translationCsrfToken && (
+                              <button
+                                type="button"
+                                data-add-translation
+                                aria-controls={`translate-post-${post.id}`}
+                                aria-expanded="false"
+                              >언어판 추가</button>
+                            )}
+                            {editCsrfToken ? (
+                              <button
+                                type="button"
+                                data-edit-post
+                                aria-controls={`edit-post-${post.id}`}
+                                aria-expanded="false"
+                              >수정</button>
+                            ) : !isActualPreview ? (
+                              <span>{String(index + 1).padStart(2, "0")}</span>
+                            ) : null}
+                          </>
+                        )}
+                      </span>
+                    </p>
+                    <h1>{post.data.title}</h1>
+                    {post.data.subtitle && <p class="post-subtitle">{post.data.subtitle}</p>}
+                  </header>
+                  <div class="post-content post-body" set:html={html} />
+                </div>
               </div>
+              {translationCsrfToken && (
+                <PostTranslationForm post={post} csrfToken={translationCsrfToken} />
+              )}
+              {editCsrfToken && <EditPostForm post={post} csrfToken={editCsrfToken} />}
             </article>
           ))}
         </section>
@@ -213,15 +312,15 @@ const initialCategory = posts[0]?.data.category ?? "";
 
           <nav>
             {renderedPosts.map(({ post }, index) => (
-              <button
-                type="button"
+              <a
+                href={postHref(post.id)}
                 data-post-index-button={index}
                 data-post-category={post.data.category}
-                aria-current={index === 0 ? "true" : undefined}
+                aria-current={index === initialIndex ? "page" : undefined}
               >
                 <span>{String(index + 1).padStart(2, "0")}</span>
                 <i>{post.data.title}</i>
-              </button>
+              </a>
             ))}
           </nav>
         </aside>
@@ -229,15 +328,16 @@ const initialCategory = posts[0]?.data.category ?? "";
 
       {!isActualPreview && (
         <footer class="reader-dock" aria-live="polite">
-          <p><strong data-current-index>01</strong><span>/</span><span data-filtered-total>{String(renderedPosts.length).padStart(2, "0")}</span></p>
-          <div class="reader-progress" aria-hidden="true"><span data-progress style={`--progress:${1 / renderedPosts.length}`} /></div>
-          <p data-current-title>{renderedPosts[0].post.data.title}</p>
+          <p><strong data-current-index>{String(initialIndex + 1).padStart(2, "0")}</strong><span>/</span><span data-filtered-total>{String(renderedPosts.length).padStart(2, "0")}</span></p>
+          <div class="reader-progress" aria-hidden="true"><span data-progress style={`--progress:${(initialIndex + 1) / renderedPosts.length}`} /></div>
+          <p data-current-title>{renderedPosts[initialIndex].post.data.title}</p>
           <div class="reader-buttons">
-            <button type="button" aria-label="이전 글" data-previous-post disabled>←</button>
-            <button type="button" aria-label="다음 글" data-next-post>→</button>
+            <button type="button" aria-label="이전 글" data-previous-post disabled={initialIndex === 0}>←</button>
+            <button type="button" aria-label="다음 글" data-next-post disabled={initialIndex === renderedPosts.length - 1}>→</button>
           </div>
         </footer>
       )}
+
     </div>
   ) : (
     <p class="empty-blog">아직 보여드릴 글이 없습니다.</p>
@@ -250,7 +350,7 @@ const initialCategory = posts[0]?.data.category ?? "";
 
   if (root && reader) {
     const posts = Array.from(root.querySelectorAll<HTMLElement>("[data-focus-post]"));
-    const indexButtons = Array.from(root.querySelectorAll<HTMLButtonElement>("[data-post-index-button]"));
+    const indexLinks = Array.from(root.querySelectorAll<HTMLAnchorElement>("[data-post-index-button]"));
     const categoryButtons = Array.from(root.querySelectorAll<HTMLButtonElement>("[data-category-filter]"));
     const categoryLabels = Array.from(root.querySelectorAll<HTMLElement>("[data-active-category]"));
     const categoryCounts = Array.from(root.querySelectorAll<HTMLElement>("[data-active-category-count]"));
@@ -265,7 +365,7 @@ const initialCategory = posts[0]?.data.category ?? "";
     const progress = root.querySelector<HTMLElement>("[data-progress]");
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let visibleIndexes = posts.map((_, index) => index);
-    let activePosition = 0;
+    let activePosition = Number(root.dataset.initialPostIndex ?? "0");
     let touchStartX = 0;
     let touchStartY = 0;
 
@@ -285,16 +385,16 @@ const initialCategory = posts[0]?.data.category ?? "";
       }
     };
 
-    const showPosition = (nextPosition: number, animate = true) => {
+    const showPosition = (nextPosition: number, animate = true, updateUrl = true) => {
       const clamped = Math.max(0, Math.min(nextPosition, visibleIndexes.length - 1));
       const direction = clamped - activePosition;
       activePosition = clamped;
       const postIndex = visibleIndexes[activePosition] ?? 0;
 
       posts.forEach((post, index) => { post.hidden = index !== postIndex; });
-      indexButtons.forEach((button) => {
-        if (Number(button.dataset.postIndexButton) === postIndex) button.setAttribute("aria-current", "true");
-        else button.removeAttribute("aria-current");
+      indexLinks.forEach((link) => {
+        if (Number(link.dataset.postIndexButton) === postIndex) link.setAttribute("aria-current", "page");
+        else link.removeAttribute("aria-current");
       });
 
       const activePost = posts[postIndex];
@@ -315,6 +415,11 @@ const initialCategory = posts[0]?.data.category ?? "";
       if (filteredTotal) filteredTotal.textContent = String(visibleIndexes.length).padStart(2, "0");
       if (currentTitle) currentTitle.textContent = activePost?.dataset.postTitle ?? "";
       progress?.style.setProperty("--progress", String((activePosition + 1) / visibleIndexes.length));
+      if (updateUrl && activePost?.dataset.postHref) {
+        const target = new URL(activePost.dataset.postHref, window.location.origin);
+        window.history.pushState({ post: activePost.dataset.post }, "", target);
+        document.title = `${activePost.dataset.postTitle ?? "글"} · huseong.com`;
+      }
       if (animate) window.scrollTo({ top: 0, behavior: reducedMotion.matches ? "auto" : "smooth" });
     };
 
@@ -323,8 +428,8 @@ const initialCategory = posts[0]?.data.category ?? "";
         .map((post, index) => ({ post, index }))
         .filter(({ post }) => !category || post.dataset.postCategory === category)
         .map(({ index }) => index);
-      indexButtons.forEach((button) => {
-        button.hidden = !visibleIndexes.includes(Number(button.dataset.postIndexButton));
+      indexLinks.forEach((link) => {
+        link.hidden = !visibleIndexes.includes(Number(link.dataset.postIndexButton));
       });
       categoryButtons.forEach((button) => {
         button.setAttribute("aria-pressed", String((button.dataset.categoryFilter ?? "") === category));
@@ -340,9 +445,11 @@ const initialCategory = posts[0]?.data.category ?? "";
     categoryButtons.forEach((button) => {
       button.addEventListener("click", () => setCategory(button.dataset.categoryFilter ?? ""));
     });
-    indexButtons.forEach((button) => {
-      button.addEventListener("click", () => {
-        const postIndex = Number(button.dataset.postIndexButton);
+    indexLinks.forEach((link) => {
+      link.addEventListener("click", (event) => {
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        const postIndex = Number(link.dataset.postIndexButton);
         const position = visibleIndexes.indexOf(postIndex);
         if (position >= 0) {
           showPosition(position);
@@ -364,6 +471,21 @@ const initialCategory = posts[0]?.data.category ?? "";
       const open = root.dataset.archiveOpen !== "true";
       root.dataset.archiveOpen = String(open);
       mobileArchiveToggle.setAttribute("aria-expanded", String(open));
+    });
+
+    window.addEventListener("popstate", () => {
+      const matchedSlug = window.location.pathname.match(/^\/posts\/([a-z0-9]+(?:-[a-z0-9]+)*)\/$/)?.[1];
+      const postIndex = matchedSlug
+        ? posts.findIndex((post) => post.dataset.post === matchedSlug)
+        : 0;
+      if (postIndex < 0) return;
+      visibleIndexes = posts.map((_, index) => index);
+      indexLinks.forEach((link) => { link.hidden = false; });
+      activePosition = postIndex;
+      showPosition(activePosition, false, false);
+      document.title = matchedSlug
+        ? `${posts[postIndex]?.dataset.postTitle ?? "글"} · huseong.com`
+        : "huseong.com";
     });
 
     document.addEventListener("keydown", (event) => {
@@ -395,7 +517,7 @@ const initialCategory = posts[0]?.data.category ?? "";
       }
     }, { passive: true });
 
-    showPosition(0, false);
+    showPosition(activePosition, false, false);
   }
 </script>
 
@@ -473,12 +595,12 @@ const initialCategory = posts[0]?.data.category ?? "";
   .category-rail > footer i { color:var(--muted); font-size:.62rem; font-style:normal; }
 
   .post-rail nav { display:grid; align-content:start; min-height:0; overflow:hidden; }
-  .post-rail nav button { display:grid; grid-template-columns:2rem minmax(0,1fr); gap:.52rem; padding:.76rem 0; border:0; border-bottom:1px solid var(--line); color:color-mix(in srgb,var(--muted) 80%,transparent); background:transparent; font:inherit; font-size:.84rem; text-align:left; cursor:pointer; }
-  .post-rail nav button[hidden] { display:none; }
-  .post-rail nav button span { font-size:.6rem; font-variant-numeric:tabular-nums; }
-  .post-rail nav button i { overflow:hidden; font-style:normal; text-overflow:ellipsis; white-space:nowrap; }
-  .post-rail nav button:hover,
-  .post-rail nav button[aria-current="true"] { color:var(--ink); }
+  .post-rail nav a { display:grid; grid-template-columns:2rem minmax(0,1fr); gap:.52rem; padding:.76rem 0; border-bottom:1px solid var(--line); color:color-mix(in srgb,var(--muted) 80%,transparent); font:inherit; font-size:.84rem; text-align:left; text-decoration:none; cursor:pointer; }
+  .post-rail nav a[hidden] { display:none; }
+  .post-rail nav a span { font-size:.6rem; font-variant-numeric:tabular-nums; }
+  .post-rail nav a i { overflow:hidden; font-style:normal; text-overflow:ellipsis; white-space:nowrap; }
+  .post-rail nav a:hover,
+  .post-rail nav a[aria-current="page"] { color:var(--ink); }
 
   .focus-reader { min-height:calc(100svh - var(--topbar)); margin-right:var(--right-rail); margin-left:var(--left-rail); }
   .variation-intro { position:absolute; z-index:5; top:calc(var(--topbar) + 28px); left:calc(var(--left-rail) + 30px); display:flex; gap:.7rem; max-width:390px; }
@@ -489,14 +611,25 @@ const initialCategory = posts[0]?.data.category ?? "";
   .focus-post { width:min(720px,100%); }
   .focus-post[hidden] { display:none; }
   .focus-blog[data-variation] .focus-post[hidden] { display:none; }
+  .focus-post-display { width:100%; }
+  .focus-post-display[hidden] { display:none; }
   .article-note { display:none; }
   .focus-copy { min-width:0; overflow:visible; }
   .post-meta { display:flex; justify-content:space-between; gap:1rem; margin:0 0 1.1rem; color:var(--muted); font-size:.59rem; letter-spacing:.06em; }
+  .focus-post-actions { display:flex; align-items:center; gap:.65rem; }
+  .focus-post-actions i { font-style:normal; }
+  .focus-post-actions button,
+  .focus-post-actions a { padding:0; border:0; color:inherit; background:transparent; font:inherit; text-decoration:underline; text-underline-offset:.22em; cursor:pointer; }
+  .focus-post-actions button:hover,
+  .focus-post-actions a:hover { color:var(--ink); }
   .post-heading h1 { max-width:11em; margin:0; font-size:clamp(3rem,6.3vw,6.2rem); font-weight:650; line-height:1.1; letter-spacing:-.055em; text-wrap:balance; }
   .post-subtitle { max-width:36rem; margin:1.15rem 0 0; color:var(--muted); font-size:.92rem; line-height:1.7; }
   .post-content { color:color-mix(in srgb,var(--ink) 91%,transparent); }
   .post-content.post-body { max-width:42rem; margin-top:clamp(2.4rem,6vh,5rem); padding-bottom:8rem; font-size:clamp(.93rem,1.35vw,1.08rem); line-height:1.95; }
   .post-content.post-body > :first-child { margin-top:0; }
+  .focus-reader > :global(.new-post-composer) { width:min(620px,calc(100% - 64px)); margin:clamp(72px,9vh,100px) auto 0; }
+  .focus-post > :global(.post-translation-form),
+  .focus-post > :global(.edit-post-form) { width:100%; }
 
   .reader-dock { position:fixed; z-index:35; right:calc(var(--right-rail) + 28px); bottom:18px; left:calc(var(--left-rail) + 28px); display:grid; grid-template-columns:auto minmax(70px,150px) minmax(0,1fr) auto; align-items:center; gap:.8rem; min-height:48px; padding:.45rem .65rem; border:1px solid var(--line); border-radius:999px; color:var(--muted); background:color-mix(in srgb,var(--paper) 90%,transparent); font-size:.52rem; backdrop-filter:blur(14px); }
   .reader-dock p { margin:0; }
@@ -523,8 +656,8 @@ const initialCategory = posts[0]?.data.category ?? "";
   .focus-blog[data-variation="focus-column"] .post-rail { padding:30px 12px 90px; }
   .focus-blog[data-variation="focus-column"] .post-rail > header strong,
   .focus-blog[data-variation="focus-column"] .post-rail > header i,
-  .focus-blog[data-variation="focus-column"] .post-rail nav button i { display:none; }
-  .focus-blog[data-variation="focus-column"] .post-rail nav button { display:grid; grid-template-columns:1fr; place-items:center; padding:.7rem 0; }
+  .focus-blog[data-variation="focus-column"] .post-rail nav a i { display:none; }
+  .focus-blog[data-variation="focus-column"] .post-rail nav a { display:grid; grid-template-columns:1fr; place-items:center; padding:.7rem 0; }
   .focus-blog[data-variation="focus-column"] .focus-post { width:min(660px,100%); }
   .focus-blog[data-variation="focus-column"] .post-heading h1 { max-width:9em; font-size:clamp(3.4rem,7vw,6.8rem); }
 
@@ -536,10 +669,11 @@ const initialCategory = posts[0]?.data.category ?? "";
   .focus-blog[data-variation="focus-index"] .variation-intro { left:calc(50% - 310px); }
   .focus-blog[data-variation="focus-index"] .focus-viewport { padding-top:clamp(82px,11vh,120px); }
   .focus-blog[data-variation="focus-index"] .focus-post { width:min(620px,calc(100vw - 640px)); }
-  .focus-blog[data-variation="focus-index"] .post-heading h1 { font-size:clamp(2.25rem,3.8vw,3.75rem); }
+  .focus-blog[data-variation="focus-index"] .post-heading h1 { font-size:clamp(1.75rem,3vw,3rem); }
   .focus-blog[data-variation="focus-index"] .post-content.post-body { font-size:clamp(1.02rem,1.5vw,1.18rem); line-height:1.9; }
   .focus-blog[data-variation="focus-index"] .reader-dock { right:auto; left:50%; grid-template-columns:auto minmax(70px,1fr) auto; width:min(620px,calc(100vw - 640px)); transform:translateX(-50%); }
-  .focus-blog[data-variation="focus-index"] .category-accordion { display:block; min-height:0; overflow:auto; }
+  .focus-blog[data-variation="focus-index"] .category-accordion { grid-row:1 / 3; display:block; min-height:0; overflow:auto; scrollbar-width:none; }
+  .focus-blog[data-variation="focus-index"] .category-accordion::-webkit-scrollbar { display:none; }
   .focus-blog[data-variation="focus-index"] .accordion-group { border-bottom:1px solid var(--line); }
   .focus-blog[data-variation="focus-index"] .category-accordion .category-toggle { display:grid; grid-template-columns:minmax(0,1fr) auto auto; width:100%; padding:.9rem .25rem; border:0; border-left:0; color:var(--ink); background:transparent; }
   .focus-blog[data-variation="focus-index"] .category-toggle > strong { margin:0; font-size:.94rem; }
@@ -549,11 +683,10 @@ const initialCategory = posts[0]?.data.category ?? "";
   .focus-blog[data-variation="focus-index"] .category-toggle:hover { background:color-mix(in srgb,var(--paper) 56%,transparent); }
   .focus-blog[data-variation="focus-index"] .accordion-posts { display:grid; padding:0 0 .6rem .7rem; }
   .focus-blog[data-variation="focus-index"] .accordion-posts[hidden] { display:none; }
-  .focus-blog[data-variation="focus-index"] .accordion-posts button { display:grid; grid-template-columns:1.8rem minmax(0,1fr); gap:.45rem; padding:.62rem .45rem; border:0; border-left:2px solid transparent; color:var(--muted); background:transparent; }
-  .focus-blog[data-variation="focus-index"] .accordion-posts button > span { display:block; font-size:.57rem; font-variant-numeric:tabular-nums; }
-  .focus-blog[data-variation="focus-index"] .accordion-posts button i { overflow:hidden; font-size:.84rem; font-style:normal; text-overflow:ellipsis; white-space:nowrap; }
-  .focus-blog[data-variation="focus-index"] .accordion-posts button:hover,
-  .focus-blog[data-variation="focus-index"] .accordion-posts button[aria-current="true"] { border-left-color:var(--accent); color:var(--ink); background:color-mix(in srgb,var(--paper) 66%,transparent); }
+  .focus-blog[data-variation="focus-index"] .accordion-posts a { display:block; padding:.62rem .45rem; border-left:2px solid transparent; color:var(--muted); font:inherit; text-align:left; text-decoration:none; }
+  .focus-blog[data-variation="focus-index"] .accordion-posts a i { overflow:hidden; font-size:.84rem; font-style:normal; text-overflow:ellipsis; white-space:nowrap; }
+  .focus-blog[data-variation="focus-index"] .accordion-posts a:hover,
+  .focus-blog[data-variation="focus-index"] .accordion-posts a[aria-current="page"] { border-left-color:var(--accent); color:var(--ink); background:color-mix(in srgb,var(--paper) 66%,transparent); }
 
   @media (min-width: 781px) {
     .focus-blog[data-variation="focus-index"] .top-categories { display:none; }
@@ -561,7 +694,8 @@ const initialCategory = posts[0]?.data.category ?? "";
 
   /* 04 — 본문 옆에 작은 읽기 주석을 남기는 여백형 */
   .focus-blog[data-variation="focus-margin"] { --left-rail:170px; --right-rail:205px; --paper:#fcf8ef; --paper-side:#f3eadc; }
-  .focus-blog[data-variation="focus-margin"] .focus-post { display:grid; grid-template-columns:150px minmax(0,680px); gap:clamp(28px,4vw,62px); width:min(900px,100%); }
+  .focus-blog[data-variation="focus-margin"] .focus-post { width:min(900px,100%); }
+  .focus-blog[data-variation="focus-margin"] .focus-post-display { display:grid; grid-template-columns:150px minmax(0,680px); gap:clamp(28px,4vw,62px); }
   .focus-blog[data-variation="focus-margin"] .article-note { position:sticky; top:calc(var(--topbar) + 34px); display:block; align-self:start; padding-top:.15rem; color:var(--muted); }
   .focus-blog[data-variation="focus-margin"] .article-note > span { font-size:.45rem; letter-spacing:.14em; }
   .focus-blog[data-variation="focus-margin"] .article-note dl { display:grid; gap:.8rem; margin:1.2rem 0 0; }
@@ -589,7 +723,8 @@ const initialCategory = posts[0]?.data.category ?? "";
 
   .top-categories button:focus-visible,
   .category-rail button:focus-visible,
-  .post-rail button:focus-visible,
+  .category-rail a:focus-visible,
+  .post-rail a:focus-visible,
   .reader-buttons button:focus-visible,
   .mobile-archive-toggle:focus-visible,
   .focus-utility a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
@@ -599,7 +734,7 @@ const initialCategory = posts[0]?.data.category ?? "";
     .category-rail,
     .post-rail { padding-inline:18px; }
     .focus-blog[data-variation="focus-index"] { --left-rail:210px; --right-rail:0px; }
-    .focus-blog[data-variation="focus-margin"] .focus-post { grid-template-columns:110px minmax(0,620px); gap:28px; }
+    .focus-blog[data-variation="focus-margin"] .focus-post-display { grid-template-columns:110px minmax(0,620px); gap:28px; }
   }
 
   @media (max-width: 780px) {
@@ -637,6 +772,7 @@ const initialCategory = posts[0]?.data.category ?? "";
 
     .focus-blog[data-variation="focus-index"] { --topbar:0px; }
     .focus-blog[data-variation="focus-index"] .actual-mobile-controls { position:fixed; z-index:50; top:12px; right:14px; display:flex; gap:.35rem; }
+    .focus-blog[data-variation="focus-index"] .actual-mobile-controls--authenticated { right:auto; left:14px; }
     .focus-blog[data-variation="focus-index"] .actual-mobile-controls button,
     .focus-blog[data-variation="focus-index"] .actual-mobile-controls a { display:block; padding:.5rem .65rem; border:1px solid var(--line); border-radius:999px; color:var(--ink); background:color-mix(in srgb,var(--paper) 90%,transparent); font:inherit; font-size:.68rem; text-decoration:none; backdrop-filter:blur(12px); }
     .focus-blog[data-variation="focus-index"] .mobile-archive-toggle { cursor:pointer; }
@@ -644,8 +780,9 @@ const initialCategory = posts[0]?.data.category ?? "";
     .focus-blog[data-variation="focus-index"][data-archive-open="true"] .category-rail { transform:translateX(0); }
     .focus-blog[data-variation="focus-index"] .category-accordion { overflow:auto; }
     .focus-blog[data-variation="focus-index"] .focus-viewport { padding-top:72px; }
-    .focus-blog[data-variation="focus-index"] .post-heading h1 { font-size:clamp(2rem,9.5vw,3.1rem); }
+    .focus-blog[data-variation="focus-index"] .post-heading h1 { font-size:clamp(1.7rem,8vw,2.6rem); }
     .focus-blog[data-variation="focus-index"] .post-content.post-body { font-size:1.06rem; line-height:1.9; }
+    .focus-reader > :global(.new-post-composer) { width:calc(100% - 28px); margin-top:72px; }
 
     .focus-blog[data-variation="focus-margin"] .article-note { position:static; display:block; margin-bottom:30px; padding:12px 14px; border:1px solid var(--line); background:var(--paper-side); }
     .focus-blog[data-variation="focus-margin"] .article-note > span { display:none; }

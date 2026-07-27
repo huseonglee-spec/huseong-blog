@@ -1,65 +1,35 @@
 ---
 import { randomUUID } from "node:crypto";
 
-import BlogFeed from "../components/BlogFeed.astro";
 import FocusBlogConcept from "../components/FocusBlogConcept.astro";
 import HomeActions from "../components/HomeActions.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { normalizeCategoryPath } from "../lib/categories";
 import { getPublishedPosts } from "../lib/content";
-import {
-  englishExpressionNotes,
-  translatePostsForAdmin,
-} from "../lib/translation-prototype";
 
 const session = Astro.locals.adminSession;
 const posts = await getPublishedPosts(Boolean(session));
-const requestedLanguage = Astro.url.searchParams.get("lang");
-const activeLanguage: "ko" | "en" = requestedLanguage === "en" && session ? "en" : "ko";
-const visiblePosts = activeLanguage === "en" ? translatePostsForAdmin(posts) : posts;
-const languageHref = (language: "ko" | "en") => {
-  const target = new URL(Astro.url);
-  target.searchParams.delete("compose");
-  if (language === "en") target.searchParams.set("lang", "en");
-  else target.searchParams.delete("lang");
-  return `${target.pathname}${target.search}`;
-};
-const categoryQuery = Astro.url.searchParams.get("category");
-let selectedCategory: string | undefined;
-try {
-  selectedCategory = categoryQuery ? normalizeCategoryPath(categoryQuery) : undefined;
-} catch {
-  return Astro.redirect("/");
-}
 const composerOpen = Boolean(session) && Astro.url.searchParams.get("compose") === "1";
 const submissionId = session ? randomUUID() : undefined;
 Astro.response.headers.set("Cache-Control", "no-store");
 ---
 
 <BaseLayout>
-  {session ? (
-    <>
-      <HomeActions
-        authenticated
-        csrfToken={session.csrfToken}
-        composerOpen={composerOpen}
-        activeLanguage={activeLanguage}
-        koreanHref={languageHref("ko")}
-        englishHref={languageHref("en")}
-      />
-      <BlogFeed
-        posts={visiblePosts}
-        composerCsrfToken={activeLanguage === "ko" ? session.csrfToken : undefined}
-        composerSubmissionId={activeLanguage === "ko" ? submissionId : undefined}
-        composerOpen={composerOpen}
-        editCsrfToken={activeLanguage === "ko" ? session.csrfToken : undefined}
-        withHomeActions
-        selectedCategory={selectedCategory}
-        translationLanguage={activeLanguage === "en" ? "en" : undefined}
-        translationNotes={activeLanguage === "en" ? englishExpressionNotes : undefined}
-      />
-    </>
-  ) : (
-    <FocusBlogConcept posts={posts} variation="focus-index" />
+  {session && (
+    <HomeActions
+      authenticated
+      csrfToken={session.csrfToken}
+      composerOpen={composerOpen}
+      focusMode
+    />
   )}
+  <FocusBlogConcept
+    posts={posts}
+    variation="focus-index"
+    authenticated={Boolean(session)}
+    composerCsrfToken={session?.csrfToken}
+    composerSubmissionId={submissionId}
+    composerOpen={composerOpen}
+    editCsrfToken={session?.csrfToken}
+    translationCsrfToken={session?.csrfToken}
+  />
 </BaseLayout>

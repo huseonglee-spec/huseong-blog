@@ -21,7 +21,7 @@ function redirect(location: string, status = 303, headers: HeadersInit = {}): Re
 
 function loginPageLocation(error: "invalid" | "limited", next: string): string {
   const params = new URLSearchParams({ error });
-  if (next !== "/admin/") params.set("next", next);
+  if (next !== "/") params.set("next", next);
   return `/admin/login/?${params.toString()}`;
 }
 
@@ -39,7 +39,7 @@ export const POST: APIRoute = async (context) => {
     }
     return redirect("/admin/login/?error=invalid");
   }
-  const next = safeReturnPath(form.get("next"), "/admin/");
+  const next = safeReturnPath(form.get("next"), "/");
   const password = form.get("password");
   if (typeof password !== "string" || Buffer.byteLength(password, "utf8") > 1_024) {
     return redirect(loginPageLocation("invalid", next));

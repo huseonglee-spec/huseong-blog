@@ -1,6 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { getSecret } from "astro:env/server";
 
+import type { PostTranslationLocale } from "./post-translation";
 import { sortPostsNewest, type BlogPost } from "./posts";
 import { normalizePostVisibility } from "./visibility";
 
@@ -57,4 +58,29 @@ export async function getPublishedPosts(
   `;
 
   return sortPostsNewest((rows as PostRow[]).map(mapRow));
+}
+
+export async function getPublishedPostTranslation(
+  slug: string,
+  locale: PostTranslationLocale,
+  includeRestricted = false,
+): Promise<BlogPost | null> {
+  const sql = neon(databaseUrl());
+  const rows = await sql`
+    SELECT p.slug, t.title, NULL::text AS subtitle, p.published_at,
+           p.thumbnail, p.thumbnail_alt, p.draft, p.category_path,
+           p.visibility, t.body_markdown,
+           GREATEST(p.updated_at, t.updated_at) AS updated_at
+      FROM posts AS p
+      JOIN post_translations AS t ON t.post_slug = p.slug
+     WHERE p.slug = ${slug}
+       AND t.locale = ${locale}
+       AND p.draft = false
+       AND p.published_at <= now()
+       AND (${includeRestricted} OR p.visibility = 'public')
+     LIMIT 1
+  `;
+
+  const row = (rows as PostRow[])[0];
+  return row ? mapRow(row) : null;
 }

@@ -1,31 +1,51 @@
 ---
-import BlogFeed from "../../components/BlogFeed.astro";
+import FocusBlogConcept from "../../components/FocusBlogConcept.astro";
 import HomeActions from "../../components/HomeActions.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import { getPublishedPosts } from "../../lib/content";
-import { postHref } from "../../lib/posts";
 import {
-  englishExpressionNotes,
-  translatePostsForAdmin,
-} from "../../lib/translation-prototype";
+  getPublishedPosts,
+  getPublishedPostTranslation,
+} from "../../lib/content";
+import {
+  parsePostTranslationLocale,
+  postTranslationHref,
+  type PostTranslationLocale,
+} from "../../lib/post-translation";
+import { postHref } from "../../lib/posts";
 
 const activeSlug = Astro.params.slug;
 const session = Astro.locals.adminSession;
 const posts = await getPublishedPosts(Boolean(session));
-const requestedLanguage = Astro.url.searchParams.get("lang");
-const activeLanguage: "ko" | "en" = requestedLanguage === "en" && session ? "en" : "ko";
-const visiblePosts = activeLanguage === "en" ? translatePostsForAdmin(posts) : posts;
-const activePost = visiblePosts.find((post) => post.id === activeSlug);
-const languageHref = (language: "ko" | "en") => {
-  const target = new URL(Astro.url);
-  if (language === "en") target.searchParams.set("lang", "en");
-  else target.searchParams.delete("lang");
-  return `${target.pathname}${target.search}`;
-};
+const sourcePost = posts.find((post) => post.id === activeSlug);
 
-if (!activePost) {
+if (!sourcePost) {
   return Astro.redirect("/404/");
 }
+
+let activeTranslationLocale: PostTranslationLocale | undefined;
+const requestedLanguage = Astro.url.searchParams.get("lang");
+if (requestedLanguage) {
+  try {
+    activeTranslationLocale = parsePostTranslationLocale(requestedLanguage);
+  } catch {
+    return Astro.redirect(postHref(sourcePost.id));
+  }
+}
+
+const translatedPost = activeTranslationLocale
+  ? await getPublishedPostTranslation(
+      sourcePost.id,
+      activeTranslationLocale,
+      Boolean(session),
+    )
+  : null;
+if (activeTranslationLocale && !translatedPost) {
+  return Astro.redirect(postHref(sourcePost.id));
+}
+const activePost = translatedPost ?? sourcePost;
+const visiblePosts = posts.map((post) =>
+  post.id === sourcePost.id ? activePost : post,
+);
 
 Astro.response.headers.set("Cache-Control", "no-store");
 const description = activePost.data.subtitle ?? activePost.data.title;
@@ -34,23 +54,26 @@ const description = activePost.data.subtitle ?? activePost.data.title;
 <BaseLayout
   title={`${activePost.data.title} · huseong.com`}
   description={description}
-  canonicalPath={postHref(activePost.id)}
+  canonicalPath={activeTranslationLocale
+    ? postTranslationHref(activePost.id, activeTranslationLocale)
+    : postHref(activePost.id)}
   type="article"
+  language={activeTranslationLocale ?? "ko"}
 >
-  <HomeActions
-    authenticated={Boolean(session)}
-    csrfToken={session?.csrfToken}
-    activeLanguage={activeLanguage}
-    koreanHref={languageHref("ko")}
-    englishHref={languageHref("en")}
-  />
-  <BlogFeed
+  {session && (
+    <HomeActions
+      authenticated
+      csrfToken={session.csrfToken}
+      focusMode
+    />
+  )}
+  <FocusBlogConcept
     posts={visiblePosts}
-    activeSlug={activePost.id}
-    selectedCategory={activePost.data.category}
-    editCsrfToken={activeLanguage === "ko" ? session?.csrfToken : undefined}
-    withHomeActions
-    translationLanguage={activeLanguage === "en" ? "en" : undefined}
-    translationNotes={activeLanguage === "en" ? englishExpressionNotes : undefined}
+    variation="focus-index"
+    initialSlug={activePost.id}
+    authenticated={Boolean(session)}
+    editCsrfToken={activeTranslationLocale ? undefined : session?.csrfToken}
+    translationCsrfToken={activeTranslationLocale ? undefined : session?.csrfToken}
+    activeTranslationLocale={activeTranslationLocale}
   />
 </BaseLayout>

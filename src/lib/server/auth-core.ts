@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
-export type AdminRouteKind = "none" | "public" | "page" | "api";
+export type AdminRouteKind = "none" | "public" | "api";
 
 export const SESSION_MAX_AGE_SECONDS = 12 * 60 * 60;
 export const LOGIN_IP_LIMIT = 5;
@@ -23,11 +23,10 @@ function withoutTrailingSlash(pathname: string): string {
 export function adminRouteKind(pathname: string): AdminRouteKind {
   const path = withoutTrailingSlash(pathname);
   if (path === "/admin/login" || path === "/api/admin/login") return "public";
-  if (path === "/admin") return "page";
   if (
     path === "/api/admin/logout" ||
     path === "/api/posts" ||
-    /^\/api\/posts\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(path)
+    /^\/api\/posts\/[a-z0-9]+(?:-[a-z0-9]+)*(?:\/translations)?$/.test(path)
   ) {
     return "api";
   }

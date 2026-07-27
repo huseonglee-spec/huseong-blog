@@ -8,13 +8,11 @@ import {
 } from "../lib/categories";
 import { renderPostMarkdown } from "../lib/markdown";
 import { initialVisibleCount, postHref } from "../lib/posts";
-import type { TranslationExpressionNote } from "../lib/translation-prototype";
 import { visibilityLabel } from "../lib/visibility";
 import CategorySidebar from "./CategorySidebar.astro";
 import EditPostForm from "./EditPostForm.astro";
 import NewPostComposer from "./NewPostComposer.astro";
 import TableOfContents from "./TableOfContents.astro";
-import TranslationCompanion from "./TranslationCompanion.astro";
 
 interface Props {
   posts: BlogPost[];
@@ -25,8 +23,6 @@ interface Props {
   editCsrfToken?: string;
   withHomeActions?: boolean;
   selectedCategory?: string;
-  translationLanguage?: "en";
-  translationNotes?: Record<string, TranslationExpressionNote[]>;
 }
 
 const {
@@ -38,8 +34,6 @@ const {
   editCsrfToken,
   withHomeActions = false,
   selectedCategory,
-  translationLanguage,
-  translationNotes = {},
 } = Astro.props;
 const categoryTree = buildCategoryTree(posts);
 const visiblePosts = filterPostsByCategory(posts, selectedCategory);
@@ -65,17 +59,13 @@ const renderedPosts = await Promise.all(
 <div
   class:list={[
     "blog-shell",
-    {
-      "blog-shell--with-home-actions": withHomeActions,
-      "blog-shell--with-language-companion": Boolean(translationLanguage),
-    },
+    { "blog-shell--with-home-actions": withHomeActions },
   ]}
 >
   <CategorySidebar
     tree={categoryTree}
     postCount={posts.length}
     selectedCategory={selectedCategory}
-    language={translationLanguage ?? "ko"}
   />
   <main
     class:list={["feed", { "feed--with-home-actions": withHomeActions }]}
@@ -115,7 +105,7 @@ const renderedPosts = await Promise.all(
             <div class="post-admin-meta">
               <a
                 class="post-category"
-                href={categoryHref(post.data.category, translationLanguage ?? "ko")}
+                href={categoryHref(post.data.category)}
               >
                 {post.data.category.replaceAll("/", " / ")}
               </a>
@@ -123,16 +113,7 @@ const renderedPosts = await Promise.all(
                 <span class="post-visibility">{visibilityLabel(post.data.visibility)}</span>
               )}
             </div>
-            {translationLanguage ? (
-              <button
-                type="button"
-                class="post-edit-button"
-                data-edit-translation
-                data-translation-post={post.id}
-                aria-controls="translation-companion"
-                aria-expanded="false"
-              >Edit</button>
-            ) : editCsrfToken && (
+            {editCsrfToken && (
               <button
                 type="button"
                 class="post-edit-button"
@@ -143,7 +124,7 @@ const renderedPosts = await Promise.all(
             )}
           </div>
           <h1>
-            <a class="post-title-link" href={postHref(post.id, translationLanguage ?? "ko")}>
+            <a class="post-title-link" href={postHref(post.id)}>
               {post.data.title}
             </a>
           </h1>
@@ -165,9 +146,6 @@ const renderedPosts = await Promise.all(
 
   <div class="feed-sentinel" data-feed-sentinel aria-hidden="true"></div>
   </main>
-  {translationLanguage && (
-    <TranslationCompanion posts={visiblePosts} notesBySlug={translationNotes} />
-  )}
 </div>
 
 <script>

@@ -15,10 +15,12 @@ describe("administrator authentication helpers", () => {
   it("classifies public and protected administrator routes", () => {
     expect(adminRouteKind("/admin/login/")).toBe("public");
     expect(adminRouteKind("/api/admin/login/")).toBe("public");
-    expect(adminRouteKind("/admin/")).toBe("page");
+    expect(adminRouteKind("/admin/")).toBe("none");
     expect(adminRouteKind("/api/admin/logout/")).toBe("api");
     expect(adminRouteKind("/api/posts/")).toBe("api");
     expect(adminRouteKind("/api/posts/example/")).toBe("api");
+    expect(adminRouteKind("/api/posts/example/translations/")).toBe("api");
+    expect(adminRouteKind("/api/posts/example/translations/delete/")).toBe("none");
     expect(adminRouteKind("/api/posts/example/delete/")).toBe("none");
     expect(adminRouteKind("/admin/posts/new/")).toBe("none");
     expect(adminRouteKind("/api/admin/posts/")).toBe("none");
@@ -39,10 +41,10 @@ describe("administrator authentication helpers", () => {
   });
 
   it("accepts only local login return paths", () => {
-    expect(safeReturnPath("/?compose=1#new-post", "/admin/")).toBe("/?compose=1#new-post");
-    expect(safeReturnPath("https://evil.example/", "/admin/")).toBe("/admin/");
-    expect(safeReturnPath("//evil.example/", "/admin/")).toBe("/admin/");
-    expect(safeReturnPath(null, "/admin/")).toBe("/admin/");
+    expect(safeReturnPath("/?compose=1#new-post", "/")).toBe("/?compose=1#new-post");
+    expect(safeReturnPath("https://evil.example/", "/")).toBe("/");
+    expect(safeReturnPath("//evil.example/", "/")).toBe("/");
+    expect(safeReturnPath(null, "/")).toBe("/");
   });
 
   it("applies both per-IP and global login attempt limits", () => {

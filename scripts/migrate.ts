@@ -85,6 +85,19 @@ await sql`
 `;
 
 await sql`
+  CREATE TABLE IF NOT EXISTS post_translations (
+    post_slug text NOT NULL REFERENCES posts(slug) ON DELETE CASCADE,
+    locale text NOT NULL CHECK (locale IN ('en', 'ja', 'zh-CN')),
+    title text NOT NULL CHECK (length(btrim(title)) > 0),
+    body_markdown text NOT NULL CHECK (length(btrim(body_markdown)) > 0),
+    published_at timestamptz NOT NULL DEFAULT now(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (post_slug, locale)
+  )
+`;
+
+await sql`
   CREATE TABLE IF NOT EXISTS admin_credentials (
     singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton = true),
     password_hash text NOT NULL,

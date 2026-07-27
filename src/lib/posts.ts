@@ -30,9 +30,8 @@ export function sortPostsNewest<T extends DatedPost>(posts: readonly T[]): T[] {
   );
 }
 
-export function postHref(slug: string, language?: "ko" | "en"): string {
-  const path = `/posts/${slug}/`;
-  return language === "en" ? `${path}?lang=en` : path;
+export function postHref(slug: string): string {
+  return `/posts/${slug}/`;
 }
 
 export function initialVisibleCount(

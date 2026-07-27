@@ -8,6 +8,7 @@ interface Props {
   canonicalPath?: string;
   type?: "website" | "article";
   robots?: string;
+  language?: "ko" | "en" | "ja" | "zh-CN";
 }
 
 const {
@@ -16,12 +17,19 @@ const {
   canonicalPath = "/",
   type = "website",
   robots,
+  language = "ko",
 } = Astro.props;
 const canonical = new URL(canonicalPath, Astro.site);
+const openGraphLocale = {
+  ko: "ko_KR",
+  en: "en_US",
+  ja: "ja_JP",
+  "zh-CN": "zh_CN",
+}[language];
 ---
 
 <!doctype html>
-<html lang="ko">
+<html lang={language}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
@@ -34,7 +42,7 @@ const canonical = new URL(canonicalPath, Astro.site);
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
-    <meta property="og:locale" content="ko_KR" />
+    <meta property="og:locale" content={openGraphLocale} />
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />

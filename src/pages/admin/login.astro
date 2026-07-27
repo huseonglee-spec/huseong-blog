@@ -2,7 +2,7 @@
 import AdminLayout from "../../layouts/AdminLayout.astro";
 import { safeReturnPath } from "../../lib/server/auth-core";
 
-const next = safeReturnPath(Astro.url.searchParams.get("next"), "/admin/");
+const next = safeReturnPath(Astro.url.searchParams.get("next"), "/");
 if (Astro.locals.adminSession) return Astro.redirect(next, 303);
 const error = Astro.url.searchParams.get("error");
 ---
