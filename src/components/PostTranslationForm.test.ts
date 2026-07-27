@@ -16,6 +16,7 @@ describe("관리자 새 언어판 발행 화면", () => {
     expect(componentSource).toContain('name="locale"');
     expect(componentSource).toContain('name="title"');
     expect(componentSource).toContain('name="bodyMarkdown"');
+    expect(componentSource).toContain('method="post"');
     expect(componentSource).toContain("POST_TRANSLATION_LOCALES.map");
     expect(componentSource).toContain('method: "POST"');
     expect(componentSource).toContain("/translations/");

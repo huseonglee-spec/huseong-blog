@@ -24,6 +24,9 @@ function json(body: unknown, status: number): Response {
 }
 
 export const POST: APIRoute = async (context) => {
+  const session = context.locals.adminSession;
+  if (!session) return json({ error: "로그인이 필요합니다." }, 401);
+
   if (!isAllowedOrigin(context.request.url, context.request.headers.get("origin"))) {
     return json({ error: "허용되지 않은 요청입니다." }, 403);
   }
@@ -38,7 +41,6 @@ export const POST: APIRoute = async (context) => {
     return json({ error: "요청 형식이 올바르지 않습니다." }, 400);
   }
 
-  const session = context.locals.adminSession!;
   if (!validCsrfToken(session, form.get("csrfToken"))) {
     return json({ error: "보안 토큰이 올바르지 않습니다." }, 403);
   }
@@ -60,8 +62,11 @@ export const POST: APIRoute = async (context) => {
   }
 
   try {
-    const published = await publishPostTranslation(slug, translation);
-    if (!published) return json({ error: "글을 찾을 수 없습니다." }, 404);
+    const status = await publishPostTranslation(slug, translation);
+    if (status === "missing") return json({ error: "글을 찾을 수 없습니다." }, 404);
+    if (status === "exists") {
+      return json({ error: "이미 발행된 언어판입니다. 기존 언어판은 변경하지 않았습니다." }, 409);
+    }
     return json(
       { location: `${postTranslationHref(slug, translation.locale)}#post-${slug}` },
       201,

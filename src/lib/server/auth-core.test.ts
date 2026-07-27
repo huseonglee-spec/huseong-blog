@@ -20,6 +20,8 @@ describe("administrator authentication helpers", () => {
     expect(adminRouteKind("/api/posts/")).toBe("api");
     expect(adminRouteKind("/api/posts/example/")).toBe("api");
     expect(adminRouteKind("/api/posts/example/translations/")).toBe("api");
+    expect(adminRouteKind("/api/posts/EXAMPLE/translations/")).toBe("api");
+    expect(adminRouteKind("/api/posts/%2E%2E/translations/")).toBe("api");
     expect(adminRouteKind("/api/posts/example/translations/delete/")).toBe("none");
     expect(adminRouteKind("/api/posts/example/delete/")).toBe("none");
     expect(adminRouteKind("/admin/posts/new/")).toBe("none");

@@ -18,6 +18,7 @@ const endpoint = `/api/posts/${encodeURIComponent(post.id)}/translations/`;
   class="post-translation-form"
   id={`translate-post-${post.id}`}
   action={endpoint}
+  method="post"
   data-post-translation-form
   hidden
 >

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const migrationUrl = new URL("../../scripts/migrate.ts", import.meta.url);
 const contentUrl = new URL("../lib/content.ts", import.meta.url);
 const routeUrl = new URL("../pages/api/posts/[slug]/translations.ts", import.meta.url);
+const publisherUrl = new URL("../lib/server/publish-post-translation.ts", import.meta.url);
 
 describe("새 언어판 발행 계약", () => {
   it("글과 언어 조합당 하나의 공개 언어판을 저장한다", async () => {
@@ -27,13 +28,21 @@ describe("새 언어판 발행 계약", () => {
     expect(source).toContain("visibility = 'public'");
   });
 
-  it("로그인·동일 출처·CSRF 검사를 거쳐 언어판을 upsert한다", async () => {
-    const source = await readFile(routeUrl, "utf8");
+  it("로그인·동일 출처·CSRF 검사를 거쳐 새 언어판만 발행한다", async () => {
+    const [routeSource, publisherSource] = await Promise.all([
+      readFile(routeUrl, "utf8"),
+      readFile(publisherUrl, "utf8"),
+    ]);
 
-    expect(source).toContain("isAllowedOrigin");
-    expect(source).toContain("validCsrfToken");
-    expect(source).toContain("parsePostTranslationInput");
-    expect(source).toContain("publishPostTranslation");
-    expect(source).toContain("export const POST");
+    expect(routeSource).toContain("isAllowedOrigin");
+    expect(routeSource).toContain("validCsrfToken");
+    expect(routeSource).toContain("if (!session)");
+    expect(routeSource).toContain("parsePostTranslationInput");
+    expect(routeSource).toContain("publishPostTranslation");
+    expect(routeSource).toContain("status === \"exists\"");
+    expect(routeSource).toContain("409");
+    expect(routeSource).toContain("export const POST");
+    expect(publisherSource).toContain("ON CONFLICT (post_slug, locale) DO NOTHING");
+    expect(publisherSource).not.toContain("DO UPDATE");
   });
 });

@@ -2,7 +2,10 @@
 import { postHref, type BlogPost } from "../lib/posts";
 
 import { renderPostMarkdown } from "../lib/markdown";
-import type { PostTranslationLocale } from "../lib/post-translation";
+import {
+  postTranslationHref,
+  type PostTranslationLocale,
+} from "../lib/post-translation";
 import { visibilityLabel } from "../lib/visibility";
 import EditPostForm from "./EditPostForm.astro";
 import NewPostComposer from "./NewPostComposer.astro";
@@ -82,6 +85,10 @@ const requestedInitialIndex = initialSlug
   : 0;
 const initialIndex = requestedInitialIndex >= 0 ? requestedInitialIndex : 0;
 const initialCategory = posts[initialIndex]?.data.category ?? "";
+const readerPostHref = (post: BlogPost) =>
+  activeTranslationLocale && post.id === initialSlug
+    ? postTranslationHref(post.id, activeTranslationLocale)
+    : postHref(post.id);
 ---
 
 <div
@@ -149,7 +156,7 @@ const initialCategory = posts[initialIndex]?.data.category ?? "";
               <div class="accordion-posts" data-accordion-posts hidden>
                 {renderedPosts.map(({ post }, index) => (
                   <a
-                    href={postHref(post.id)}
+                    href={readerPostHref(post)}
                     data-post-index-button={index}
                     data-post-category={post.data.category}
                     aria-current={index === initialIndex ? "page" : undefined}
@@ -171,7 +178,7 @@ const initialCategory = posts[initialIndex]?.data.category ?? "";
                   <div class="accordion-posts" data-accordion-posts hidden={!expanded}>
                     {renderedPosts.map(({ post }, index) => post.data.category === category && (
                       <a
-                        href={postHref(post.id)}
+                        href={readerPostHref(post)}
                         data-post-index-button={index}
                         data-post-category={post.data.category}
                         aria-current={index === initialIndex ? "page" : undefined}
@@ -240,7 +247,7 @@ const initialCategory = posts[initialIndex]?.data.category ?? "";
               class="focus-post"
               data-focus-post
               data-post={post.id}
-              data-post-href={postHref(post.id)}
+              data-post-href={readerPostHref(post)}
               data-post-category={post.data.category}
               data-post-title={post.data.title}
               hidden={index !== initialIndex}
@@ -313,7 +320,7 @@ const initialCategory = posts[initialIndex]?.data.category ?? "";
           <nav>
             {renderedPosts.map(({ post }, index) => (
               <a
-                href={postHref(post.id)}
+                href={readerPostHref(post)}
                 data-post-index-button={index}
                 data-post-category={post.data.category}
                 aria-current={index === initialIndex ? "page" : undefined}
@@ -479,6 +486,15 @@ const initialCategory = posts[initialIndex]?.data.category ?? "";
         ? posts.findIndex((post) => post.dataset.post === matchedSlug)
         : 0;
       if (postIndex < 0) return;
+      const currentLanguage = new URL(window.location.href).searchParams.get("lang");
+      const renderedHref = posts[postIndex]?.dataset.postHref;
+      const renderedLanguage = renderedHref
+        ? new URL(renderedHref, window.location.origin).searchParams.get("lang")
+        : null;
+      if (currentLanguage !== renderedLanguage) {
+        window.location.reload();
+        return;
+      }
       visibleIndexes = posts.map((_, index) => index);
       indexLinks.forEach((link) => { link.hidden = false; });
       activePosition = postIndex;

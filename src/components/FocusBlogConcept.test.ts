@@ -59,10 +59,18 @@ describe("FocusBlogConcept", () => {
     const source = await readFile(componentUrl, "utf8");
 
     expect(source).toContain('import { postHref, type BlogPost } from "../lib/posts"');
+    expect(source).toContain("postTranslationHref");
+    expect(source).toContain("const readerPostHref = (post: BlogPost)");
+    expect(source).toContain("activeTranslationLocale && post.id === initialSlug");
+    expect(source).toContain("postTranslationHref(post.id, activeTranslationLocale)");
+    expect(source).toContain("data-post-href={readerPostHref(post)}");
     expect(source).toContain("initialSlug?: string");
-    expect(source).toContain("href={postHref(post.id)}");
+    expect(source).toContain("href={readerPostHref(post)}");
     expect(source).toContain("window.history.pushState");
     expect(source).toContain('window.addEventListener("popstate"');
+    expect(source).toContain('searchParams.get("lang")');
+    expect(source).toContain("currentLanguage !== renderedLanguage");
+    expect(source).toContain("window.location.reload()");
   });
 
   it("운영형 인덱스는 카테고리 안에 글을 넣은 아코디언으로 탐색한다", async () => {
