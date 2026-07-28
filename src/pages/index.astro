@@ -14,6 +14,7 @@ import {
   asPostTranslationLocale,
   selectReaderLocalesByPost,
 } from "../lib/reader-language";
+import { getPostStudyPanel } from "../lib/server/post-study";
 
 const session = Astro.locals.adminSession;
 const includeRestricted = Boolean(session);
@@ -45,6 +46,9 @@ const translatedInitialPost = initialSourcePost && activeTranslationLocale
 const posts = translatedInitialPost && initialSourcePost
   ? sourcePosts.map((post) => post.id === initialSourcePost.id ? translatedInitialPost : post)
   : sourcePosts;
+const studyPanel = session && initialSourcePost && activeTranslationLocale
+  ? await getPostStudyPanel(initialSourcePost.id, activeTranslationLocale)
+  : undefined;
 const composerOpen = Boolean(session) && Astro.url.searchParams.get("compose") === "1";
 const submissionId = session ? randomUUID() : undefined;
 ---
@@ -68,7 +72,10 @@ const submissionId = session ? randomUUID() : undefined;
     composerOpen={composerOpen}
     editCsrfToken={activeTranslationLocale ? undefined : session?.csrfToken}
     translationCsrfToken={activeTranslationLocale ? undefined : session?.csrfToken}
+    translationEditCsrfToken={activeTranslationLocale ? session?.csrfToken : undefined}
     activeTranslationLocale={activeTranslationLocale}
+    studyPanel={studyPanel}
+    studyCsrfToken={studyPanel ? session?.csrfToken : undefined}
     availableTranslationLocalesByPost={availableTranslationLocalesByPost}
     readerLocaleByPost={readerLocaleByPost}
   />

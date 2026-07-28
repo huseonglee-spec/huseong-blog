@@ -1,0 +1,254 @@
+---
+import type { PostStudyPanelView } from "../lib/post-study";
+import {
+  postTranslationHref,
+  translationLocaleLabel,
+  type PostTranslationLocale,
+} from "../lib/post-translation";
+
+interface Props {
+  slug: string;
+  locale: PostTranslationLocale;
+  csrfToken: string;
+  panel: PostStudyPanelView;
+}
+
+const { slug, locale, csrfToken, panel } = Astro.props;
+const generating = panel.status === "pending" || panel.status === "processing";
+const levelLabel = locale === "en" ? "중급" : "완전 초급";
+const languageLabel = translationLocaleLabel(locale);
+---
+
+<button
+  type="button"
+  class="study-panel-opener"
+  data-open-study-panel
+  aria-controls="post-study-companion"
+  aria-expanded="true"
+>
+  단어·표현 보기
+</button>
+
+<aside
+  id="post-study-companion"
+  class="post-study-companion"
+  data-post-study-companion
+  data-mobile-open="true"
+  role="complementary"
+  aria-label={`${languageLabel} 단어와 표현`}
+>
+  <header class="study-header">
+    <div>
+      <p>{languageLabel} · {levelLabel}</p>
+      <h2>단어와 표현</h2>
+    </div>
+    <button
+      type="button"
+      class="study-panel-close"
+      data-close-study-panel
+      aria-label="단어와 표현 패널 닫기"
+    >×</button>
+  </header>
+
+  <div class="study-state" aria-live="polite">
+    {generating && (
+      <p data-study-generating>
+        {panel.isRefreshing ? "수정한 글에서 새 단어를 다시 찾는 중…" : "이 글의 단어와 표현을 생성 중…"}
+      </p>
+    )}
+    {panel.status === "failed" && (
+      <p data-study-error>생성에 실패했어. 아래에서 다시 시도할 수 있어.</p>
+    )}
+  </div>
+
+  <div class="study-items" data-study-items>
+    {panel.items.map((item) => (
+      <article class="study-card" data-study-card>
+        <button
+          type="button"
+          class="study-dismiss"
+          data-dismiss-study-item
+          data-item-key={item.itemKey}
+          aria-label={`${item.text} 배운 항목 숨기기`}
+          title="배운 항목 숨기기"
+        >×</button>
+        <p class="study-kind">{item.kind === "word" ? "단어" : "표현"}</p>
+        <h3 lang={locale}>{item.text}</h3>
+        {item.reading && <p class="study-reading" lang={locale}>{item.reading}</p>}
+        <strong>{item.meaningKo}</strong>
+        <p class="study-note">{item.noteKo}</p>
+        <blockquote lang={locale}>{item.context}</blockquote>
+      </article>
+    ))}
+  </div>
+
+  <p class="study-empty" data-study-empty hidden={panel.items.length > 0 || generating}>
+    {panel.status === "idle"
+      ? "아직 만든 학습 항목이 없어."
+      : "지금 볼 새 항목은 없어. 숨긴 항목은 다른 글과 다음 생성에서도 다시 나오지 않아."}
+  </p>
+
+  <footer class="study-footer">
+    <p class="study-memory-note">항목의 ×는 배움 완료야. 같은 언어의 다른 글에서도 다시 나오지 않아.</p>
+    <p data-study-action-status aria-live="polite"></p>
+    <button type="button" data-regenerate-study disabled={generating}>
+      {generating ? "생성 중…" : "다시 생성"}
+    </button>
+    <a href={postTranslationHref(slug, locale)}>현재 언어판</a>
+  </footer>
+
+  <script is:inline type="application/json" data-study-config set:html={JSON.stringify({
+    slug,
+    locale,
+    csrfToken,
+    generating,
+  }).replaceAll("<", "\\u003c")} />
+</aside>
+
+<script>
+  interface StudyConfig {
+    slug: string;
+    locale: string;
+    csrfToken: string;
+    generating: boolean;
+  }
+
+  const companion = document.querySelector<HTMLElement>("[data-post-study-companion]");
+  const opener = document.querySelector<HTMLButtonElement>("[data-open-study-panel]");
+  const closeButton = companion?.querySelector<HTMLButtonElement>("[data-close-study-panel]");
+  const configNode = companion?.querySelector<HTMLScriptElement>("[data-study-config]");
+  const config = configNode?.textContent ? JSON.parse(configNode.textContent) as StudyConfig : undefined;
+
+  if (companion && opener && config) {
+    const actionStatus = companion.querySelector<HTMLElement>("[data-study-action-status]");
+    const empty = companion.querySelector<HTMLElement>("[data-study-empty]");
+    const regenerate = companion.querySelector<HTMLButtonElement>("[data-regenerate-study]");
+    const dismissButtons = Array.from(
+      companion.querySelectorAll<HTMLButtonElement>("[data-dismiss-study-item]"),
+    );
+
+    const setMobileOpen = (open: boolean) => {
+      companion.dataset.mobileOpen = String(open);
+      opener.setAttribute("aria-expanded", String(open));
+    };
+    opener.addEventListener("click", () => setMobileOpen(true));
+    closeButton?.addEventListener("click", () => setMobileOpen(false));
+
+    dismissButtons.forEach((button) => {
+      button.addEventListener("click", async () => {
+        const card = button.closest<HTMLElement>("[data-study-card]");
+        if (!card || !button.dataset.itemKey) return;
+        button.disabled = true;
+        if (actionStatus) actionStatus.textContent = "숨기는 중…";
+        const body = new FormData();
+        body.set("csrfToken", config.csrfToken);
+        body.set("locale", config.locale);
+        body.set("itemKey", button.dataset.itemKey);
+        try {
+          const response = await fetch(`/api/posts/${encodeURIComponent(config.slug)}/study/dismiss/`, {
+            method: "POST",
+            body,
+            headers: { Accept: "application/json" },
+          });
+          const result = await response.json() as { error?: string };
+          if (!response.ok) throw new Error(result.error ?? "항목을 숨기지 못했습니다.");
+          card.remove();
+          if (actionStatus) actionStatus.textContent = "배운 항목으로 숨겼어.";
+          if (!companion.querySelector("[data-study-card]") && empty) empty.hidden = false;
+        } catch (error) {
+          button.disabled = false;
+          if (actionStatus) {
+            actionStatus.textContent = error instanceof Error ? error.message : "항목을 숨기지 못했습니다.";
+          }
+        }
+      });
+    });
+
+    regenerate?.addEventListener("click", async () => {
+      regenerate.disabled = true;
+      if (actionStatus) actionStatus.textContent = "다시 생성을 요청하는 중…";
+      const body = new FormData();
+      body.set("csrfToken", config.csrfToken);
+      body.set("locale", config.locale);
+      try {
+        const response = await fetch(`/api/posts/${encodeURIComponent(config.slug)}/study/generate/`, {
+          method: "POST",
+          body,
+          headers: { Accept: "application/json" },
+        });
+        const result = await response.json() as { error?: string };
+        if (!response.ok) throw new Error(result.error ?? "다시 생성을 요청하지 못했습니다.");
+        window.location.reload();
+      } catch (error) {
+        regenerate.disabled = false;
+        if (actionStatus) {
+          actionStatus.textContent = error instanceof Error ? error.message : "다시 생성을 요청하지 못했습니다.";
+        }
+      }
+    });
+
+    if (config.generating) {
+      window.setTimeout(() => {
+        const editing = document.querySelector("[data-edit-post-translation-form]:not([hidden])");
+        if (!editing && document.visibilityState === "visible") window.location.reload();
+      }, 5_000);
+    }
+  }
+</script>
+
+<style>
+  .study-panel-opener { display:none; }
+  .post-study-companion {
+    position:fixed;
+    z-index:25;
+    top:0;
+    right:0;
+    bottom:0;
+    width:var(--study-panel,330px);
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    border-left:1px solid var(--line);
+    color:var(--ink);
+    background:var(--paper-side);
+    scrollbar-width:none;
+  }
+  .post-study-companion::-webkit-scrollbar { display:none; }
+  .study-header { position:sticky; z-index:2; top:0; display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding:1.35rem 1.25rem 1rem; border-bottom:1px solid var(--line); background:color-mix(in srgb,var(--paper-side) 94%,transparent); backdrop-filter:blur(14px); }
+  .study-header p { margin:0 0 .24rem; color:var(--muted); font-size:.62rem; letter-spacing:.08em; }
+  .study-header h2 { margin:0; font-size:1.04rem; }
+  .study-panel-close { display:none; width:2.6rem; height:2.6rem; padding:0; border:0; color:var(--muted); background:transparent; font:inherit; font-size:1.25rem; cursor:pointer; }
+  .study-state { padding:0 1.25rem; }
+  .study-state:empty { display:none; }
+  .study-state p { margin:1rem 0 0; padding:.7rem .75rem; border:1px solid var(--line); color:var(--muted); background:color-mix(in srgb,var(--paper) 62%,transparent); font-size:.72rem; line-height:1.55; }
+  .study-items { display:grid; }
+  .study-card { position:relative; padding:1.25rem 1.25rem 1.35rem; border-bottom:1px solid var(--line); }
+  .study-dismiss { position:absolute; top:.8rem; right:.85rem; display:grid; place-items:center; width:2.4rem; height:2.4rem; padding:0; border:0; border-radius:50%; color:var(--muted); background:transparent; font:inherit; font-size:1.15rem; cursor:pointer; }
+  .study-dismiss:hover { color:var(--ink); background:var(--paper); }
+  .study-dismiss:disabled { cursor:wait; opacity:.45; }
+  .study-kind { margin:0 0 .36rem; color:var(--muted); font-size:.6rem; letter-spacing:.09em; }
+  .study-card h3 { max-width:calc(100% - 2.6rem); margin:0; font-size:1.04rem; line-height:1.45; overflow-wrap:anywhere; }
+  .study-reading { margin:.2rem 0 0; color:var(--muted); font-size:.72rem; }
+  .study-card > strong { display:block; margin-top:.7rem; font-size:.82rem; }
+  .study-note { margin:.45rem 0 0; color:var(--muted); font-size:.75rem; line-height:1.65; }
+  .study-card blockquote { margin:.72rem 0 0; padding-left:.65rem; border-left:2px solid var(--line); color:color-mix(in srgb,var(--ink) 76%,transparent); font-size:.69rem; line-height:1.55; }
+  .study-empty { margin:1.2rem 1.25rem; color:var(--muted); font-size:.75rem; line-height:1.65; }
+  .study-footer { display:grid; gap:.65rem; padding:1.15rem 1.25rem 1.5rem; }
+  .study-footer p { min-height:1.3em; margin:0; color:var(--muted); font-size:.7rem; line-height:1.5; }
+  .study-footer .study-memory-note { color:color-mix(in srgb,var(--ink) 72%,transparent); }
+  .study-footer button { min-height:2.65rem; border:1px solid var(--ink); border-radius:2px; color:var(--paper); background:var(--ink); font:inherit; font-size:.76rem; cursor:pointer; }
+  .study-footer button:disabled { cursor:wait; opacity:.5; }
+  .study-footer a { justify-self:start; color:var(--muted); font-size:.68rem; text-underline-offset:.25em; }
+
+  @media (max-width:1080px) {
+    .study-panel-opener { position:fixed; z-index:42; right:14px; bottom:14px; display:block; min-height:2.75rem; padding:.55rem .8rem; border:1px solid var(--line); border-radius:999px; color:var(--ink); background:var(--paper); font:inherit; font-size:.72rem; box-shadow:0 8px 28px rgba(57,45,30,.14); cursor:pointer; }
+    .study-panel-opener[aria-expanded="true"] { visibility:hidden; }
+    .post-study-companion { z-index:43; top:auto; left:10px; width:auto; max-height:min(74svh,680px); border:1px solid var(--line); border-radius:4px; box-shadow:0 14px 42px rgba(57,45,30,.2); transform:translateY(calc(100% + 20px)); transition:transform 180ms ease; }
+    .post-study-companion[data-mobile-open="true"] { transform:translateY(0); }
+    .study-header { padding-top:.85rem; }
+    .study-panel-close { display:grid; place-items:center; }
+  }
+
+  @media (prefers-reduced-motion:reduce) {
+    .post-study-companion { transition:none; }
+  }
+</style>

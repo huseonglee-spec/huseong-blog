@@ -9,6 +9,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "admin:password": "tsx scripts/set-admin-password.ts",
     "post": "tsx scripts/posts.ts",
+    "study:worker": "tsx scripts/post-study-worker.ts",
     "preview": "astro preview",
     "smoke": "node scripts/smoke.mjs",
     "test": "vitest run",

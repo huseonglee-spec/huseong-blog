@@ -2,6 +2,7 @@
 import { postHref, type BlogPost } from "../lib/posts";
 
 import { renderPostMarkdown } from "../lib/markdown";
+import type { PostStudyPanelView } from "../lib/post-study";
 import {
   postTranslationHref,
   translationLocaleLabel,
@@ -13,7 +14,9 @@ import {
 } from "../lib/reader-language";
 import { visibilityLabel } from "../lib/visibility";
 import EditPostForm from "./EditPostForm.astro";
+import EditPostTranslationForm from "./EditPostTranslationForm.astro";
 import NewPostComposer from "./NewPostComposer.astro";
+import PostStudyCompanion from "./PostStudyCompanion.astro";
 import PostTranslationForm from "./PostTranslationForm.astro";
 
 export type FocusVariation = "focus" | "focus-column" | "focus-index" | "focus-margin" | "focus-night";
@@ -28,7 +31,10 @@ interface Props {
   composerOpen?: boolean;
   editCsrfToken?: string;
   translationCsrfToken?: string;
+  translationEditCsrfToken?: string;
   activeTranslationLocale?: PostTranslationLocale;
+  studyPanel?: PostStudyPanelView;
+  studyCsrfToken?: string;
   availableTranslationLocalesByPost?: Record<string, PostTranslationLocale[]>;
   readerLocaleByPost?: Record<string, ReaderLocale>;
 }
@@ -43,7 +49,10 @@ const {
   composerOpen = false,
   editCsrfToken,
   translationCsrfToken,
+  translationEditCsrfToken,
   activeTranslationLocale,
+  studyPanel,
+  studyCsrfToken,
   availableTranslationLocalesByPost = {},
   readerLocaleByPost = {},
 } = Astro.props;
@@ -115,6 +124,7 @@ const readerPostHref = (post: BlogPost) =>
   data-variation={variation}
   data-post-count={renderedPosts.length}
   data-initial-post-index={initialIndex}
+  data-study-panel={studyPanel ? "true" : undefined}
 >
   {!isActualPreview ? (
     <header class="focus-topbar">
@@ -286,7 +296,16 @@ const readerPostHref = (post: BlogPost) =>
                       <span>{post.data.category.replaceAll("/", " · ")}</span>
                       <span class="focus-post-actions">
                         {editCsrfToken && <i>{visibilityLabel(post.data.visibility)}</i>}
-                        {!(activeTranslationLocale && post.id === initialSlug) && (
+                        {activeTranslationLocale && post.id === initialSlug ? (
+                          translationEditCsrfToken && (
+                            <button
+                              type="button"
+                              data-edit-translation
+                              aria-controls={`edit-post-translation-${post.id}-${activeTranslationLocale}`}
+                              aria-expanded="false"
+                            >언어판 수정</button>
+                          )
+                        ) : (
                           <>
                             {translationCsrfToken && (
                               <button
@@ -337,10 +356,26 @@ const readerPostHref = (post: BlogPost) =>
                 <PostTranslationForm post={post} csrfToken={translationCsrfToken} />
               )}
               {editCsrfToken && <EditPostForm post={post} csrfToken={editCsrfToken} />}
+              {translationEditCsrfToken && activeTranslationLocale && post.id === initialSlug && (
+                <EditPostTranslationForm
+                  post={post}
+                  locale={activeTranslationLocale}
+                  csrfToken={translationEditCsrfToken}
+                />
+              )}
             </article>
           ))}
         </section>
       </main>
+
+      {studyPanel && studyCsrfToken && activeTranslationLocale && initialSlug && (
+        <PostStudyCompanion
+          slug={initialSlug}
+          locale={activeTranslationLocale}
+          csrfToken={studyCsrfToken}
+          panel={studyPanel}
+        />
+      )}
 
       {!isActualPreview && (
         <aside class="post-rail" aria-label="글 차례">
@@ -599,6 +634,7 @@ const readerPostHref = (post: BlogPost) =>
     --topbar:84px;
     --left-rail:220px;
     --right-rail:230px;
+    --study-panel:330px;
     --paper:#faf7ef;
     --paper-side:#f1ece1;
     --ink:#2a251f;
@@ -706,6 +742,7 @@ const readerPostHref = (post: BlogPost) =>
   .post-content.post-body > :first-child { margin-top:0; }
   .focus-reader > :global(.new-post-composer) { width:min(620px,calc(100% - 64px)); margin:clamp(72px,9vh,100px) auto 0; }
   .focus-post > :global(.post-translation-form),
+  .focus-post > :global(.edit-post-translation-form),
   .focus-post > :global(.edit-post-form) { width:100%; }
 
   .reader-dock { position:fixed; z-index:35; right:calc(var(--right-rail) + 28px); bottom:18px; left:calc(var(--left-rail) + 28px); display:grid; grid-template-columns:auto minmax(70px,150px) minmax(0,1fr) auto; align-items:center; gap:.8rem; min-height:48px; padding:.45rem .65rem; border:1px solid var(--line); border-radius:999px; color:var(--muted); background:color-mix(in srgb,var(--paper) 90%,transparent); font-size:.52rem; backdrop-filter:blur(14px); }
@@ -743,9 +780,11 @@ const readerPostHref = (post: BlogPost) =>
   .focus-blog[data-variation="focus-index"] .category-rail { grid-template-rows:auto minmax(0,1fr) auto; padding-inline:22px; }
   .focus-blog[data-variation="focus-index"] .post-rail { display:none; }
   .focus-blog[data-variation="focus-index"] .focus-reader { margin:0; }
+  .focus-blog[data-variation="focus-index"][data-study-panel="true"] .focus-reader { margin-right:var(--study-panel); margin-left:var(--left-rail); }
   .focus-blog[data-variation="focus-index"] .variation-intro { left:calc(50% - 310px); }
   .focus-blog[data-variation="focus-index"] .focus-viewport { padding-top:clamp(82px,11vh,120px); }
   .focus-blog[data-variation="focus-index"] .focus-post { width:min(620px,calc(100vw - 640px)); }
+  .focus-blog[data-variation="focus-index"][data-study-panel="true"] .focus-post { width:min(620px,calc(100vw - var(--left-rail) - var(--study-panel) - 80px)); }
   .focus-blog[data-variation="focus-index"] .focus-viewport:has(.post-translation-form:not([hidden])) { padding-right:40px; padding-left:calc(var(--left-rail) + 40px); }
   .focus-blog[data-variation="focus-index"] .focus-post:has(> .post-translation-form:not([hidden])) { width:min(1000px,100%); }
   .focus-blog[data-variation="focus-index"] .post-heading h1 { font-size:clamp(1.75rem,3vw,3rem); }
@@ -813,6 +852,8 @@ const readerPostHref = (post: BlogPost) =>
     .category-rail,
     .post-rail { padding-inline:18px; }
     .focus-blog[data-variation="focus-index"] { --left-rail:210px; --right-rail:0px; }
+    .focus-blog[data-variation="focus-index"][data-study-panel="true"] .focus-reader { margin-right:0; margin-left:0; }
+    .focus-blog[data-variation="focus-index"][data-study-panel="true"] .focus-post { width:min(620px,calc(100vw - var(--left-rail) - 80px)); }
     .focus-blog[data-variation="focus-margin"] .focus-post-display { grid-template-columns:110px minmax(0,620px); gap:28px; }
   }
 

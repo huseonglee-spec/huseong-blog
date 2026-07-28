@@ -13,6 +13,7 @@ import {
   type PostTranslationLocale,
 } from "../../lib/post-translation";
 import { postHref } from "../../lib/posts";
+import { getPostStudyPanel } from "../../lib/server/post-study";
 import {
   READER_LOCALE_COOKIE,
   selectReaderLocalesByPost,
@@ -68,6 +69,9 @@ if (activeTranslationLocale && !translatedPost) {
   return Astro.redirect(postHref(sourcePost.id));
 }
 const activePost = translatedPost ?? sourcePost;
+const studyPanel = session && activeTranslationLocale
+  ? await getPostStudyPanel(sourcePost.id, activeTranslationLocale)
+  : undefined;
 const visiblePosts = posts.map((post) =>
   post.id === sourcePost.id ? activePost : post,
 );
@@ -98,7 +102,10 @@ const description = activePost.data.subtitle ?? activePost.data.title;
     authenticated={Boolean(session)}
     editCsrfToken={activeTranslationLocale ? undefined : session?.csrfToken}
     translationCsrfToken={activeTranslationLocale ? undefined : session?.csrfToken}
+    translationEditCsrfToken={activeTranslationLocale ? session?.csrfToken : undefined}
     activeTranslationLocale={activeTranslationLocale}
+    studyPanel={studyPanel}
+    studyCsrfToken={studyPanel ? session?.csrfToken : undefined}
     availableTranslationLocalesByPost={availableTranslationLocalesByPost}
     readerLocaleByPost={readerLocaleByPost}
   />

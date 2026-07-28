@@ -1,0 +1,156 @@
+---
+import type { PostTranslationLocale } from "../lib/post-translation";
+import type { BlogPost } from "../lib/posts";
+
+interface Props {
+  post: BlogPost;
+  locale: PostTranslationLocale;
+  csrfToken: string;
+}
+
+const { post, locale, csrfToken } = Astro.props;
+const endpoint = `/api/posts/${encodeURIComponent(post.id)}/translations/`;
+---
+
+<form
+  class="edit-post-translation-form"
+  id={`edit-post-translation-${post.id}-${locale}`}
+  action={endpoint}
+  data-edit-post-translation-form
+  hidden
+>
+  <input type="hidden" name="csrfToken" value={csrfToken} />
+  <input type="hidden" name="locale" value={locale} />
+
+  <label class="visually-hidden" for={`edit-translation-title-${post.id}`}>언어판 제목</label>
+  <input
+    class="edit-translation-title"
+    id={`edit-translation-title-${post.id}`}
+    name="title"
+    type="text"
+    maxlength="200"
+    value={post.data.title}
+    autocomplete="off"
+    required
+  />
+
+  <label class="visually-hidden" for={`edit-translation-body-${post.id}`}>언어판 본문</label>
+  <textarea
+    class="edit-translation-body"
+    id={`edit-translation-body-${post.id}`}
+    name="bodyMarkdown"
+    maxlength="170000"
+    required
+  >{post.bodyMarkdown}</textarea>
+
+  <footer class="edit-translation-footer">
+    <p data-edit-translation-status aria-live="polite"></p>
+    <div>
+      <button type="button" class="text-button" data-cancel-translation-edit>취소</button>
+      <button type="submit" class="save-button">저장하고 단어 다시 찾기</button>
+    </div>
+  </footer>
+</form>
+
+<script>
+  document.querySelectorAll<HTMLFormElement>("[data-edit-post-translation-form]").forEach((form) => {
+    if (form.dataset.ready === "true") return;
+    form.dataset.ready = "true";
+
+    const article = form.closest<HTMLElement>("[data-post]");
+    const display = article?.querySelector<HTMLElement>("[data-post-display]");
+    const trigger = article?.querySelector<HTMLButtonElement>("[data-edit-translation]");
+    const title = form.querySelector<HTMLInputElement>("[name=title]");
+    const body = form.querySelector<HTMLTextAreaElement>("[name=bodyMarkdown]");
+    const status = form.querySelector<HTMLElement>("[data-edit-translation-status]");
+    const submitButton = form.querySelector<HTMLButtonElement>("[type=submit]");
+    const cancelButton = form.querySelector<HTMLButtonElement>("[data-cancel-translation-edit]");
+    let submitting = false;
+
+    const resizeBody = () => {
+      if (!body || form.hidden) return;
+      body.style.height = "auto";
+      body.style.height = `${Math.max(body.scrollHeight, window.innerHeight * 0.5)}px`;
+    };
+
+    trigger?.addEventListener("click", () => {
+      if (!display) return;
+      display.hidden = true;
+      form.hidden = false;
+      trigger.setAttribute("aria-expanded", "true");
+      resizeBody();
+      title?.focus();
+    });
+    body?.addEventListener("input", resizeBody);
+
+    cancelButton?.addEventListener("click", () => {
+      if (submitting || !display) return;
+      form.hidden = true;
+      display.hidden = false;
+      trigger?.setAttribute("aria-expanded", "false");
+      trigger?.focus();
+    });
+
+    form.addEventListener("keydown", (event) => {
+      if (!submitting && (event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault();
+        form.requestSubmit();
+      }
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (submitting || !submitButton || !status) return;
+      submitting = true;
+      submitButton.disabled = true;
+      if (cancelButton) cancelButton.disabled = true;
+      status.dataset.error = "false";
+      status.textContent = "저장 중…";
+
+      try {
+        const response = await fetch(form.action, {
+          method: "PATCH",
+          body: new FormData(form),
+          headers: { Accept: "application/json" },
+        });
+        const result = await response.json() as { error?: string; location?: string };
+        if (!response.ok || !result.location) {
+          throw new Error(result.error ?? "언어판을 수정하지 못했습니다.");
+        }
+        const target = new URL(result.location, window.location.href);
+        history.replaceState(null, "", `${target.pathname}${target.search}${target.hash}`);
+        window.location.reload();
+      } catch (error) {
+        status.dataset.error = "true";
+        status.textContent = error instanceof Error ? error.message : "언어판을 수정하지 못했습니다.";
+        submitting = false;
+        submitButton.disabled = false;
+        if (cancelButton) cancelButton.disabled = false;
+      }
+    });
+  });
+</script>
+
+<style>
+  .edit-post-translation-form { display:grid; }
+  .edit-post-translation-form[hidden] { display:none; }
+  .visually-hidden { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+  .edit-translation-title,
+  .edit-translation-body { width:100%; padding:0; border:0; outline:0; color:var(--ink); background:transparent; font:inherit; }
+  .edit-translation-title:focus-visible,
+  .edit-translation-body:focus-visible { box-shadow:inset 0 -2px 0 color-mix(in srgb,var(--accent) 58%,transparent); }
+  .edit-translation-title { margin-bottom:2.4rem; font-size:clamp(1.72rem,5vw,2.55rem); font-weight:650; line-height:1.42; letter-spacing:-.035em; }
+  .edit-translation-body { min-height:50vh; resize:none; font-size:clamp(1rem,2.15vw,1.08rem); line-height:1.9; }
+  .edit-translation-footer { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-top:2.5rem; padding-top:1rem; border-top:1px solid var(--line); }
+  .edit-translation-footer p { min-height:1.5em; margin:0; color:var(--muted); font-size:.8rem; }
+  .edit-translation-footer p[data-error="true"] { color:#9a3e2e; }
+  .edit-translation-footer div { display:flex; align-items:center; gap:.8rem; }
+  .edit-translation-footer button { padding:.45rem .85rem; border:1px solid var(--ink); border-radius:2px; font:inherit; font-size:.82rem; cursor:pointer; }
+  .text-button { color:var(--ink); background:transparent; }
+  .save-button { color:var(--paper); background:var(--ink); }
+  .edit-translation-footer button:disabled { cursor:wait; opacity:.6; }
+
+  @media (max-width:560px) {
+    .edit-translation-footer { align-items:flex-end; flex-direction:column; }
+  }
+</style>

@@ -26,7 +26,7 @@ export function adminRouteKind(pathname: string): AdminRouteKind {
   if (
     path === "/api/admin/logout" ||
     path === "/api/posts" ||
-    /^\/api\/posts\/[^/]+(?:\/translations)?$/.test(path)
+    /^\/api\/posts\/[^/]+(?:\/translations|\/study\/(?:generate|dismiss))?$/.test(path)
   ) {
     return "api";
   }
