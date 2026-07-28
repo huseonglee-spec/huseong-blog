@@ -50,7 +50,7 @@ describe("관리자 언어 학습 패널", () => {
     expect(companion).toContain("생성 중");
   });
 
-  it("데스크톱은 폭을 예약한 옆 패널이고 좁은 화면은 다시 열 수 있는 하단 패널이다", async () => {
+  it("언어를 바꿔도 본문 위치를 유지하고 좁은 화면은 다시 열 수 있는 하단 패널을 쓴다", async () => {
     const [companion, focus] = await Promise.all([
       readFile(companionUrl, "utf8"),
       readFile(focusUrl, "utf8"),
@@ -62,8 +62,10 @@ describe("관리자 언어 학습 패널", () => {
     expect(companion).toContain("data-open-study-panel");
     expect(companion).toContain("data-close-study-panel");
     expect(focus).toContain("--study-panel");
-    expect(focus).toContain("margin-right:var(--study-panel)");
-    expect(companion).toMatch(/@media \(max-width:1080px\)/);
+    expect(focus).toContain('.focus-blog[data-variation="focus-index"] .focus-reader { margin:0; }');
+    expect(focus).not.toContain('[data-study-panel="true"] .focus-reader');
+    expect(focus).not.toContain('[data-study-panel="true"] .focus-post');
+    expect(companion).toMatch(/@media \(max-width:1280px\)/);
   });
 
   it("필요한 두 새 컴포넌트가 실제 파일로 존재한다", async () => {

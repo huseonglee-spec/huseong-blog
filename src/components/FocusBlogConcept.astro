@@ -807,11 +807,9 @@ const readerPostHref = (post: BlogPost) =>
   .focus-blog[data-variation="focus-index"] .category-rail { grid-template-rows:auto minmax(0,1fr) auto; padding-inline:22px; }
   .focus-blog[data-variation="focus-index"] .post-rail { display:none; }
   .focus-blog[data-variation="focus-index"] .focus-reader { margin:0; }
-  .focus-blog[data-variation="focus-index"][data-study-panel="true"] .focus-reader { margin-right:var(--study-panel); margin-left:var(--left-rail); }
   .focus-blog[data-variation="focus-index"] .variation-intro { left:calc(50% - 310px); }
   .focus-blog[data-variation="focus-index"] .focus-viewport { padding-top:clamp(82px,11vh,120px); }
   .focus-blog[data-variation="focus-index"] .focus-post { width:min(620px,calc(100vw - 640px)); }
-  .focus-blog[data-variation="focus-index"][data-study-panel="true"] .focus-post { width:min(620px,calc(100vw - var(--left-rail) - var(--study-panel) - 80px)); }
   .focus-blog[data-variation="focus-index"] .focus-viewport:has(.post-translation-form:not([hidden])) { padding-right:40px; padding-left:calc(var(--left-rail) + 40px); }
   .focus-blog[data-variation="focus-index"] .focus-post:has(> .post-translation-form:not([hidden])) { width:min(1000px,100%); }
   .focus-blog[data-variation="focus-index"] .post-heading h1 { font-size:clamp(1.75rem,3vw,3rem); }
@@ -879,8 +877,6 @@ const readerPostHref = (post: BlogPost) =>
     .category-rail,
     .post-rail { padding-inline:18px; }
     .focus-blog[data-variation="focus-index"] { --left-rail:210px; --right-rail:0px; }
-    .focus-blog[data-variation="focus-index"][data-study-panel="true"] .focus-reader { margin-right:0; margin-left:0; }
-    .focus-blog[data-variation="focus-index"][data-study-panel="true"] .focus-post { width:min(620px,calc(100vw - var(--left-rail) - 80px)); }
     .focus-blog[data-variation="focus-margin"] .focus-post-display { grid-template-columns:110px minmax(0,620px); gap:28px; }
   }
 
