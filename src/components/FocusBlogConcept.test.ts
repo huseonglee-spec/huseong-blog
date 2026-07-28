@@ -73,18 +73,38 @@ describe("FocusBlogConcept", () => {
     expect(source).toContain("window.location.reload()");
   });
 
-  it("글 제목 위에 실제 발행된 언어판만 텍스트 링크로 표시하고 직접 선택을 기억한다", async () => {
+  it("네 언어를 모두 표시하고 발행된 언어판의 직접 선택만 기억한다", async () => {
     const source = await readFile(componentUrl, "utf8");
 
     expect(source).toContain("availableTranslationLocalesByPost?:");
     expect(source).toContain("readerLocaleByPost?:");
     expect(source).toContain('class="reader-language-list"');
     expect(source).toContain('aria-label="이 글의 언어판"');
-    expect(source).toContain("한국어");
-    expect(source).toContain("translationLocaleLabel");
+    expect(source).toContain("readerLocaleLabel");
+    expect(source).toContain("READER_LOCALES.map");
+    expect(source).toContain("isReaderLocaleAvailable");
+    expect(source).toContain('aria-disabled="true"');
+    expect(source).toContain("data-reader-language-unavailable");
     expect(source).toContain("data-reader-language");
+    expect(source).toContain('querySelectorAll<HTMLAnchorElement>("a[data-reader-language]")');
     expect(source).toContain("READER_LOCALE_COOKIE");
     expect(source).toContain("Max-Age=31536000");
+  });
+
+  it("언어판 링크를 국기와 구분선이 있는 하나의 분할 컨트롤로 보여준다", async () => {
+    const source = await readFile(componentUrl, "utf8");
+
+    expect(source).toContain('ko: "🇰🇷"');
+    expect(source).toContain('en: "🇺🇸"');
+    expect(source).toContain('ja: "🇯🇵"');
+    expect(source).toContain('"zh-CN": "🇨🇳"');
+    expect(source).toContain('class="reader-language-flag"');
+    expect(source).toContain('aria-hidden="true"');
+    expect(source).toMatch(/\.reader-language-list\s*\{[^}]*display:inline-flex;[^}]*border:1px solid[^}]*border-radius:999px/s);
+    expect(source).toMatch(/\.reader-language-option\s*\{[^}]*display:inline-flex;[^}]*min-height:2\.4rem;[^}]*font-size:\.8rem/s);
+    expect(source).toMatch(/\.reader-language-option \+ \.reader-language-option\s*\{[^}]*border-left:1px solid/s);
+    expect(source).toMatch(/a\.reader-language-option\[aria-current="page"\]\s*\{[^}]*background:var\(--ink\)/s);
+    expect(source).toMatch(/\.reader-language-option\[aria-disabled="true"\]\s*\{[^}]*background:color-mix[^}]*cursor:not-allowed;[^}]*grayscale/s);
   });
 
   it("운영형 인덱스는 카테고리 안에 글을 넣은 아코디언으로 탐색한다", async () => {
