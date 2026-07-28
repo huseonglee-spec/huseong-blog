@@ -116,6 +116,14 @@ const schema: Schema = {
   },
 };
 
+export function postMarkdownText(markdown: string): string {
+  const tree = unified()
+    .use(remarkParse)
+    .use(remarkDirective)
+    .parse(markdown);
+  return mdastToString(tree).trim();
+}
+
 export async function renderPostMarkdown(
   markdown: string,
 ): Promise<RenderedMarkdown> {

@@ -75,87 +75,18 @@ const endpoint = `/api/posts/${encodeURIComponent(post.id)}/`;
 </form>
 
 <script>
-  document.querySelectorAll<HTMLFormElement>("[data-edit-post-form]").forEach((form) => {
-    if (form.dataset.ready === "true") return;
-    form.dataset.ready = "true";
+  import { initializeInlineForms } from "../lib/client/inline-form";
 
-    const article = form.closest<HTMLElement>("[data-post]");
-    const display = article?.querySelector<HTMLElement>("[data-post-display]");
-    const trigger = article?.querySelector<HTMLButtonElement>("[data-edit-post]");
-    const title = form.querySelector<HTMLInputElement>("[name=title]");
-    const body = form.querySelector<HTMLTextAreaElement>("[name=bodyMarkdown]");
-    const status = form.querySelector<HTMLElement>("[data-edit-post-status]");
-    const submitButton = form.querySelector<HTMLButtonElement>("[type=submit]");
-    const cancelButton = form.querySelector<HTMLButtonElement>("[data-cancel-edit]");
-    let submitting = false;
-
-    const resizeBody = () => {
-      if (!body || form.hidden) return;
-      body.style.height = "auto";
-      body.style.height = `${Math.max(body.scrollHeight, window.innerHeight * 0.5)}px`;
-    };
-
-    trigger?.addEventListener("click", () => {
-      if (!display) return;
-      display.hidden = true;
-      form.hidden = false;
-      trigger.setAttribute("aria-expanded", "true");
-      resizeBody();
-      title?.focus();
-    });
-
-    body?.addEventListener("input", resizeBody);
-
-    cancelButton?.addEventListener("click", () => {
-      if (submitting || !display) return;
-      form.hidden = true;
-      display.hidden = false;
-      trigger?.setAttribute("aria-expanded", "false");
-      trigger?.focus();
-    });
-
-    form.addEventListener("keydown", (event) => {
-      if (!submitting && (event.metaKey || event.ctrlKey) && event.key === "Enter") {
-        event.preventDefault();
-        form.requestSubmit();
-      }
-    });
-
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (submitting || !submitButton || !status) return;
-
-      submitting = true;
-      submitButton.disabled = true;
-      if (cancelButton) cancelButton.disabled = true;
-      status.dataset.error = "false";
-      status.textContent = "저장 중…";
-
-      try {
-        const response = await fetch(form.action, {
-          method: "PATCH",
-          body: new FormData(form),
-          headers: { Accept: "application/json" },
-        });
-        const result = await response.json() as { error?: string; location?: string };
-        if (!response.ok || !result.location) {
-          throw new Error(result.error ?? "글을 수정하지 못했습니다.");
-        }
-        const target = new URL(result.location, window.location.href);
-        if (target.pathname === window.location.pathname) {
-          history.replaceState(null, "", `${target.pathname}${target.search}${target.hash}`);
-          window.location.reload();
-        } else {
-          window.location.assign(target.href);
-        }
-      } catch (error) {
-        status.dataset.error = "true";
-        status.textContent = error instanceof Error ? error.message : "글을 수정하지 못했습니다.";
-        submitting = false;
-        submitButton.disabled = false;
-        if (cancelButton) cancelButton.disabled = false;
-      }
-    });
+  initializeInlineForms({
+    formSelector: "[data-edit-post-form]",
+    triggerSelector: "[data-edit-post]",
+    cancelSelector: "[data-cancel-edit]",
+    statusSelector: "[data-edit-post-status]",
+    focusSelector: "[name=title]",
+    method: "PATCH",
+    pendingMessage: "저장 중…",
+    fallbackError: "글을 수정하지 못했습니다.",
+    navigation: "smart",
   });
 </script>
 

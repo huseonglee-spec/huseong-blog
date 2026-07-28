@@ -8,7 +8,7 @@ Type=oneshot
 WorkingDirectory=/home/huseong/Workspace/huseong-blog
 Environment=HOME=/home/huseong
 Environment=PATH=/home/huseong/.nvm/versions/node/v25.1.0/bin:/home/huseong/.local/share/pnpm:/home/huseong/.local/bin:/usr/local/bin:/usr/bin:/bin
-Environment=HUSEONG_BLOG_STUDY_HERMES_PROFILE=macmini
+Environment=HUSEONG_BLOG_STUDY_HERMES_PROFILE=linux-coder
 Environment=HUSEONG_BLOG_STUDY_HERMES_MODEL=gpt-5.6-sol
 ExecStart=/home/huseong/.nvm/versions/node/v25.1.0/bin/pnpm study:worker
 TimeoutStartSec=15min

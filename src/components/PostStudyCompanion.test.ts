@@ -47,6 +47,8 @@ describe("관리자 언어 학습 패널", () => {
     expect(editor).toContain('method: "PATCH"');
     expect(companion).toContain("다시 생성");
     expect(companion).toContain("/study/generate/");
+    expect(companion).toContain("/study/status/");
+    expect(companion).toContain("maxPolls = 20");
     expect(companion).toContain("생성 중");
   });
 
@@ -61,6 +63,10 @@ describe("관리자 언어 학습 패널", () => {
     expect(companion).not.toContain('aria-modal="true"');
     expect(companion).toContain("data-open-study-panel");
     expect(companion).toContain("data-close-study-panel");
+    expect(companion).toContain('toggleAttribute("inert"');
+    expect(companion).toContain('event.key === "Escape"');
+    expect(focus).toContain("studyPanelSlug");
+    expect(focus).toContain("[data-post-study-companion], a, button");
     expect(focus).toContain("--study-panel");
     expect(focus).toContain('.focus-blog[data-variation="focus-index"] .focus-reader { margin:0; }');
     expect(focus).not.toContain('[data-study-panel="true"] .focus-reader');

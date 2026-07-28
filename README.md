@@ -121,7 +121,7 @@ pnpm admin:password
 
 로그인한 관리자가 영어·일본어·중국어 언어판을 읽으면 오른쪽에 `단어와 표현` 패널이 함께 열립니다. 영어는 중급, 일본어와 중국어는 완전 초급 기준으로 글에 실제로 나온 학습 항목과 한국어 뜻·설명을 보여 줍니다. 항목의 `×`는 학습 완료 처리이며 Neon에 언어별 전역 이력으로 남습니다. 따라서 같은 항목은 현재 글을 다시 생성하거나 다른 글을 읽어도 다시 나오지 않습니다. 언어판의 `언어판 수정`으로 제목·본문을 저장하면 새 원문 해시로 학습 항목 생성이 자동 예약되고, 패널의 `다시 생성`으로 같은 본문을 명시적으로 다시 생성할 수도 있습니다. 공개 독자에게는 이 패널과 관련 API가 노출되지 않습니다.
 
-학습 항목 생성은 Vercel에서 모델을 직접 호출하지 않습니다. Vercel은 Neon에 작업만 저장하고, 이 Linux 호스트의 systemd timer가 로컬 Hermes의 `macmini` OAuth 프로필과 `gpt-5.6-sol`을 사용해 결과를 Neon에 기록합니다. OpenAI API key는 사용하지 않습니다.
+학습 항목 생성은 Vercel에서 모델을 직접 호출하지 않습니다. Vercel은 Neon에 작업만 저장하고, 이 Linux 호스트의 systemd timer가 로컬 Hermes의 `linux-coder` OAuth 프로필과 `gpt-5.6-sol`을 사용해 결과를 Neon에 기록합니다. OpenAI API key는 사용하지 않습니다. Worker에는 네트워크·파일 도구를 주지 않고 개인 메모리와 프로젝트 지침도 읽히지 않습니다. 생성은 원문 해시와 prompt version이 모두 맞을 때만 완료되며, 일시 장애는 제한된 backoff로 재시도합니다. 영구 실패는 systemd 실패 상태로 드러납니다. 변경 중인 코드로 작업하지 않도록 Git 작업 트리가 깨끗하지 않으면 worker가 시작을 거부하므로, 코드 작업 중에는 timer를 멈추고 커밋·마이그레이션 후 다시 시작합니다.
 
 ```bash
 cp ops/systemd/huseong-blog-study-worker.{service,timer} ~/.config/systemd/user/

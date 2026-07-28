@@ -4,9 +4,7 @@ import { parsePostSlug } from "../../../../lib/edit-post";
 import {
   parsePostTranslationInput,
   postTranslationHref,
-  type PublishablePostTranslation,
 } from "../../../../lib/post-translation";
-import { postStudySourceHash } from "../../../../lib/post-study";
 import { validCsrfToken } from "../../../../lib/server/auth";
 import { isAllowedOrigin } from "../../../../lib/server/auth-core";
 import { requestPostStudyGeneration } from "../../../../lib/server/post-study";
@@ -29,14 +27,10 @@ function json(body: unknown, status: number): Response {
 
 async function requestStudyGeneration(
   slug: string,
-  translation: PublishablePostTranslation,
+  locale: ReturnType<typeof parsePostTranslationInput>["locale"],
 ): Promise<void> {
   try {
-    await requestPostStudyGeneration(
-      slug,
-      translation.locale,
-      postStudySourceHash(translation.title, translation.bodyMarkdown),
-    );
+    await requestPostStudyGeneration(slug, locale);
   } catch (error) {
     console.error("Failed to queue post study generation", error);
   }
@@ -86,7 +80,7 @@ export const POST: APIRoute = async (context) => {
     if (status === "exists") {
       return json({ error: "이미 발행된 언어판입니다. 기존 언어판은 변경하지 않았습니다." }, 409);
     }
-    await requestStudyGeneration(slug, translation);
+    await requestStudyGeneration(slug, translation.locale);
     return json(
       { location: `${postTranslationHref(slug, translation.locale)}#post-${slug}` },
       201,
@@ -138,7 +132,6 @@ export const PATCH: APIRoute = async (context) => {
   try {
     const updated = await updatePostTranslation(slug, translation);
     if (!updated) return json({ error: "언어판을 찾을 수 없습니다." }, 404);
-    await requestStudyGeneration(slug, translation);
     return json(
       { location: `${postTranslationHref(slug, translation.locale)}#post-${slug}` },
       200,

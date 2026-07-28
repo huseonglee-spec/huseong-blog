@@ -136,13 +136,38 @@ await sql`
     sort_order integer NOT NULL CHECK (sort_order >= 0),
     kind text NOT NULL CHECK (kind IN ('word', 'expression')),
     text text NOT NULL CHECK (length(btrim(text)) BETWEEN 1 AND 120),
-    reading text,
+    canonical_text text NOT NULL CHECK (length(btrim(canonical_text)) BETWEEN 1 AND 120),
+    reading text CHECK (reading IS NULL OR length(btrim(reading)) BETWEEN 1 AND 120),
     meaning_ko text NOT NULL CHECK (length(btrim(meaning_ko)) BETWEEN 1 AND 500),
     note_ko text NOT NULL CHECK (length(btrim(note_ko)) BETWEEN 1 AND 500),
     context_text text NOT NULL CHECK (length(btrim(context_text)) BETWEEN 1 AND 500),
     created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (generation_id, item_key)
   )
+`;
+
+await sql`
+  ALTER TABLE post_study_items
+    ADD COLUMN IF NOT EXISTS canonical_text text
+`;
+
+await sql`
+  UPDATE post_study_items
+     SET canonical_text = text
+   WHERE canonical_text IS NULL
+`;
+
+await sql`
+  ALTER TABLE post_study_items
+    ALTER COLUMN canonical_text SET NOT NULL,
+    DROP CONSTRAINT IF EXISTS post_study_items_reading_valid,
+    DROP CONSTRAINT IF EXISTS post_study_items_canonical_text_valid,
+    ADD CONSTRAINT post_study_items_canonical_text_valid CHECK (
+      length(btrim(canonical_text)) BETWEEN 1 AND 120
+    ),
+    ADD CONSTRAINT post_study_items_reading_valid CHECK (
+      reading IS NULL OR length(btrim(reading)) BETWEEN 1 AND 120
+    )
 `;
 
 await sql`

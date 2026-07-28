@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 
 import {
-  POST_STUDY_PROMPT_VERSION,
   postStudySourceHash,
   type PostStudyGenerationStatus,
   type PostStudyItem,
@@ -9,23 +8,44 @@ import {
 } from "../post-study";
 import type { PostTranslationLocale } from "../post-translation";
 import { database } from "./db";
+import {
+  enqueuePostStudyGeneration,
+  type PostStudyQueueStatus,
+} from "./post-study-queue";
 
-export type RequestPostStudyGenerationStatus = "queued" | "active" | "missing";
+export type RequestPostStudyGenerationStatus = PostStudyQueueStatus;
 
 interface TranslationSourceRow {
   title: string;
   body_markdown: string;
 }
 
-interface GenerationStatusRow {
-  id: string;
-  status: "pending" | "processing" | "completed" | "failed" | "superseded";
+export async function getPostStudySource(
+  slug: string,
+  locale: PostTranslationLocale,
+): Promise<{ title: string; bodyMarkdown: string } | undefined> {
+  const sql = database();
+  const rows = await sql`
+    SELECT title, body_markdown
+      FROM post_translations
+     WHERE post_slug = ${slug}
+       AND locale = ${locale}
+     LIMIT 1
+  `;
+  const source = (rows as TranslationSourceRow[])[0];
+  return source
+    ? { title: source.title, bodyMarkdown: source.body_markdown }
+    : undefined;
 }
 
-interface StudyItemRow {
+interface StudyPanelRow {
+  latest_status: "pending" | "processing" | "completed" | "failed" | "superseded" | null;
+  latest_source_hash: string | null;
+  has_completed: boolean;
   item_key: string;
   kind: "word" | "expression";
   text: string;
+  canonical_text: string;
   reading: string | null;
   meaning_ko: string;
   note_ko: string;
@@ -35,107 +55,102 @@ interface StudyItemRow {
 export async function requestPostStudyGeneration(
   slug: string,
   locale: PostTranslationLocale,
-  requestedSourceHash?: string,
 ): Promise<RequestPostStudyGenerationStatus> {
   const sql = database();
-  let sourceHash = requestedSourceHash;
-  if (!sourceHash) {
-    const sourceRows = await sql`
-      SELECT title, body_markdown
-        FROM post_translations
-       WHERE post_slug = ${slug}
-         AND locale = ${locale}
-       LIMIT 1
-    `;
-    const source = (sourceRows as TranslationSourceRow[])[0];
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const source = await getPostStudySource(slug, locale);
     if (!source) return "missing";
-    sourceHash = postStudySourceHash(source.title, source.body_markdown);
+    const status = await enqueuePostStudyGeneration(sql, {
+      generationId: randomUUID(),
+      postSlug: slug,
+      locale,
+      title: source.title,
+      bodyMarkdown: source.bodyMarkdown,
+      sourceHash: postStudySourceHash(source.title, source.bodyMarkdown),
+    });
+    if (status !== "missing") return status;
   }
-
-  const generationId = randomUUID();
-  const inserted = await sql`
-    INSERT INTO post_study_generations (
-      id, post_slug, locale, source_hash, prompt_version
-    )
-    SELECT ${generationId}, post_slug, locale, ${sourceHash}, ${POST_STUDY_PROMPT_VERSION}
-      FROM post_translations
-     WHERE post_slug = ${slug}
-       AND locale = ${locale}
-    ON CONFLICT DO NOTHING
-    RETURNING id
-  `;
-  if ((inserted as { id: string }[])[0]?.id) return "queued";
-  const exists = await sql`
-    SELECT post_slug
-      FROM post_translations
-     WHERE post_slug = ${slug}
-       AND locale = ${locale}
-     LIMIT 1
-  `;
-  return (exists as { post_slug: string }[])[0]?.post_slug ? "active" : "missing";
+  return "missing";
 }
 
-function viewStatus(row: GenerationStatusRow | undefined): PostStudyGenerationStatus {
-  if (!row) return "idle";
-  if (row.status === "completed") return "ready";
-  if (row.status === "failed") return "failed";
-  if (row.status === "pending" || row.status === "processing") return row.status;
+function viewStatus(status: StudyPanelRow["latest_status"]): PostStudyGenerationStatus {
+  if (status === "completed") return "ready";
+  if (status === "failed") return "failed";
+  if (status === "pending" || status === "processing") return status;
   return "idle";
 }
 
 export async function getPostStudyPanel(
   slug: string,
   locale: PostTranslationLocale,
+  sourceHash: string,
 ): Promise<PostStudyPanelView> {
   const sql = database();
-  const [latestRows, itemRows] = await Promise.all([
-    sql`
-      SELECT id, status
+  const rows = await sql`
+    WITH latest AS (
+      SELECT status, source_hash
         FROM post_study_generations
        WHERE post_slug = ${slug}
          AND locale = ${locale}
        ORDER BY requested_at DESC, id DESC
        LIMIT 1
-    `,
-    sql`
-      WITH latest_completed AS (
-        SELECT id
-          FROM post_study_generations
-         WHERE post_slug = ${slug}
-           AND locale = ${locale}
-           AND status = 'completed'
-         ORDER BY completed_at DESC NULLS LAST, requested_at DESC, id DESC
-         LIMIT 1
-      )
-      SELECT i.item_key, i.kind, i.text, i.reading, i.meaning_ko,
-             i.note_ko, i.context_text
-        FROM post_study_items AS i
-        JOIN latest_completed AS g ON g.id = i.generation_id
-       WHERE NOT EXISTS (
+    ), latest_completed AS (
+      SELECT id
+        FROM post_study_generations
+       WHERE post_slug = ${slug}
+         AND locale = ${locale}
+         AND source_hash = ${sourceHash}
+         AND status = 'completed'
+       ORDER BY completed_at DESC NULLS LAST, requested_at DESC, id DESC
+       LIMIT 1
+    )
+    SELECT latest.status AS latest_status,
+           latest.source_hash AS latest_source_hash,
+           EXISTS (
+             SELECT 1
+               FROM post_study_generations AS existing
+              WHERE existing.post_slug = ${slug}
+                AND existing.locale = ${locale}
+                AND existing.status = 'completed'
+           ) AS has_completed,
+           i.item_key, i.kind, i.text, i.canonical_text, i.reading, i.meaning_ko,
+           i.note_ko, i.context_text
+      FROM (SELECT 1) AS anchor
+      LEFT JOIN latest ON true
+      LEFT JOIN latest_completed AS completed ON true
+      LEFT JOIN post_study_items AS i
+        ON i.generation_id = completed.id
+       AND NOT EXISTS (
          SELECT 1
            FROM post_study_dismissals AS d
           WHERE d.locale = ${locale}
             AND d.item_key = i.item_key
        )
-       ORDER BY i.sort_order ASC, i.item_key ASC
-    `,
-  ]);
-  const latest = (latestRows as GenerationStatusRow[])[0];
-  const items: PostStudyItem[] = (itemRows as StudyItemRow[]).map((row) => ({
+     ORDER BY i.sort_order ASC NULLS LAST, i.item_key ASC NULLS LAST
+  `;
+  const panelRows = rows as StudyPanelRow[];
+  const latest = panelRows[0];
+  const status = latest?.latest_source_hash === sourceHash
+    ? viewStatus(latest.latest_status)
+    : "idle";
+  const items: PostStudyItem[] = panelRows
+    .filter((row) => Boolean(row.item_key))
+    .map((row) => ({
     itemKey: row.item_key,
     kind: row.kind,
     text: row.text,
+    canonicalText: row.canonical_text,
     ...(row.reading ? { reading: row.reading } : {}),
     meaningKo: row.meaning_ko,
     noteKo: row.note_ko,
     context: row.context_text,
   }));
-  const status = viewStatus(latest);
   return {
     locale,
+    sourceHash,
     status,
     items,
-    isRefreshing: items.length > 0 && (status === "pending" || status === "processing"),
+    isRefreshing: Boolean(latest?.has_completed) && (status === "pending" || status === "processing"),
   };
 }
 

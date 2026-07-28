@@ -14,6 +14,7 @@ import {
   asPostTranslationLocale,
   selectReaderLocalesByPost,
 } from "../lib/reader-language";
+import { postStudySourceHash } from "../lib/post-study";
 import { getPostStudyPanel } from "../lib/server/post-study";
 
 const session = Astro.locals.adminSession;
@@ -47,7 +48,11 @@ const posts = translatedInitialPost && initialSourcePost
   ? sourcePosts.map((post) => post.id === initialSourcePost.id ? translatedInitialPost : post)
   : sourcePosts;
 const studyPanel = session && initialSourcePost && activeTranslationLocale
-  ? await getPostStudyPanel(initialSourcePost.id, activeTranslationLocale)
+  ? await getPostStudyPanel(
+      initialSourcePost.id,
+      activeTranslationLocale,
+      postStudySourceHash(translatedInitialPost!.data.title, translatedInitialPost!.bodyMarkdown),
+    )
   : undefined;
 const composerOpen = Boolean(session) && Astro.url.searchParams.get("compose") === "1";
 const submissionId = session ? randomUUID() : undefined;

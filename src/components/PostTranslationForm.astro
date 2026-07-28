@@ -85,81 +85,18 @@ const { html: sourceHtml } = await renderPostMarkdown(post.bodyMarkdown);
 </form>
 
 <script>
-  document.querySelectorAll<HTMLFormElement>("[data-post-translation-form]").forEach((form) => {
-    if (form.dataset.ready === "true") return;
-    form.dataset.ready = "true";
+  import { initializeInlineForms } from "../lib/client/inline-form";
 
-    const article = form.closest<HTMLElement>("[data-post]");
-    const display = article?.querySelector<HTMLElement>("[data-post-display]");
-    const trigger = article?.querySelector<HTMLButtonElement>("[data-add-translation]");
-    const locale = form.querySelector<HTMLSelectElement>("[name=locale]");
-    const body = form.querySelector<HTMLTextAreaElement>("[name=bodyMarkdown]");
-    const status = form.querySelector<HTMLElement>("[data-translation-status]");
-    const submitButton = form.querySelector<HTMLButtonElement>("[type=submit]");
-    const cancelButton = form.querySelector<HTMLButtonElement>("[data-cancel-translation]");
-    let submitting = false;
-
-    const resizeBody = () => {
-      if (!body || form.hidden) return;
-      body.style.height = "auto";
-      body.style.height = `${Math.max(body.scrollHeight, window.innerHeight * 0.5)}px`;
-    };
-
-    trigger?.addEventListener("click", () => {
-      if (!display) return;
-      display.hidden = true;
-      form.hidden = false;
-      trigger.setAttribute("aria-expanded", "true");
-      resizeBody();
-      locale?.focus();
-    });
-
-    body?.addEventListener("input", resizeBody);
-
-    cancelButton?.addEventListener("click", () => {
-      if (submitting || !display) return;
-      form.hidden = true;
-      display.hidden = false;
-      trigger?.setAttribute("aria-expanded", "false");
-      trigger?.focus();
-    });
-
-    form.addEventListener("keydown", (event) => {
-      if (!submitting && (event.metaKey || event.ctrlKey) && event.key === "Enter") {
-        event.preventDefault();
-        form.requestSubmit();
-      }
-    });
-
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (submitting || !submitButton || !status) return;
-
-      submitting = true;
-      submitButton.disabled = true;
-      if (cancelButton) cancelButton.disabled = true;
-      status.dataset.error = "false";
-      status.textContent = "발행 중…";
-
-      try {
-        const response = await fetch(form.action, {
-          method: "POST",
-          body: new FormData(form),
-          headers: { Accept: "application/json" },
-        });
-        const result = await response.json() as { error?: string; location?: string };
-        if (!response.ok || !result.location) {
-          throw new Error(result.error ?? "언어판을 발행하지 못했습니다.");
-        }
-        window.location.assign(result.location);
-      } catch (error) {
-        status.dataset.error = "true";
-        status.textContent = error instanceof Error ? error.message : "언어판을 발행하지 못했습니다.";
-        submitting = false;
-        submitButton.disabled = false;
-        if (cancelButton) cancelButton.disabled = false;
-      }
-    });
+  initializeInlineForms({
+    formSelector: "[data-post-translation-form]",
+    triggerSelector: "[data-add-translation]",
+    cancelSelector: "[data-cancel-translation]",
+    statusSelector: "[data-translation-status]",
+    focusSelector: "[name=locale]",
+    method: "POST",
+    pendingMessage: "발행 중…",
+    fallbackError: "언어판을 발행하지 못했습니다.",
+    navigation: "assign",
   });
 </script>
 
