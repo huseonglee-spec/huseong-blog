@@ -4,6 +4,7 @@ import { postHref, type BlogPost } from "../lib/posts";
 import { renderPostMarkdown } from "../lib/markdown";
 import type { PostStudyPanelView } from "../lib/post-study";
 import {
+  POST_TRANSLATION_LOCALES,
   postTranslationHref,
   type PostTranslationLocale,
 } from "../lib/post-translation";
@@ -110,6 +111,10 @@ const renderedReaderLocale = (post: BlogPost): ReaderLocale =>
     : "ko";
 const isReaderLocaleAvailable = (post: BlogPost, locale: ReaderLocale): boolean =>
   locale === "ko" || (availableTranslationLocalesByPost[post.id] ?? []).includes(locale);
+const hasMissingTranslationLocale = (post: BlogPost): boolean =>
+  POST_TRANSLATION_LOCALES.some(
+    (locale) => !(availableTranslationLocalesByPost[post.id] ?? []).includes(locale),
+  );
 const READER_LOCALE_FLAGS: Record<ReaderLocale, string> = {
   ko: "🇰🇷",
   en: "🇺🇸",
@@ -312,7 +317,7 @@ const readerPostHref = (post: BlogPost) =>
                           )
                         ) : (
                           <>
-                            {translationCsrfToken && (
+                            {translationCsrfToken && hasMissingTranslationLocale(post) && (
                               <button
                                 type="button"
                                 data-add-translation
@@ -376,8 +381,12 @@ const readerPostHref = (post: BlogPost) =>
                   <div class="post-content post-body" set:html={html} />
                 </div>
               </div>
-              {translationCsrfToken && (
-                <PostTranslationForm post={post} csrfToken={translationCsrfToken} />
+              {translationCsrfToken && hasMissingTranslationLocale(post) && (
+                <PostTranslationForm
+                  post={post}
+                  csrfToken={translationCsrfToken}
+                  publishedLocales={availableTranslationLocalesByPost[post.id] ?? []}
+                />
               )}
               {editCsrfToken && <EditPostForm post={post} csrfToken={editCsrfToken} />}
               {translationEditCsrfToken && activeTranslationLocale && post.id === initialSlug && (

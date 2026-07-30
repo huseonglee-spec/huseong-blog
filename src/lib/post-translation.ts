@@ -4,6 +4,7 @@ import { postHref } from "./posts";
 export const POST_TRANSLATION_LOCALES = ["en", "ja", "zh-CN"] as const;
 
 export type PostTranslationLocale = (typeof POST_TRANSLATION_LOCALES)[number];
+export type PostTranslationModelLocale = "en" | "ja" | "zh-Hans";
 
 const TRANSLATION_LOCALE_LABELS: Record<PostTranslationLocale, string> = {
   en: "English",
@@ -38,6 +39,12 @@ export function parsePostTranslationLocale(value: unknown): PostTranslationLocal
 
 export function translationLocaleLabel(locale: PostTranslationLocale): string {
   return TRANSLATION_LOCALE_LABELS[locale];
+}
+
+export function postTranslationModelLocale(
+  locale: PostTranslationLocale,
+): PostTranslationModelLocale {
+  return locale === "zh-CN" ? "zh-Hans" : locale;
 }
 
 export function postTranslationHref(

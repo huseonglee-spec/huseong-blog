@@ -98,6 +98,51 @@ await sql`
 `;
 
 await sql`
+  CREATE TABLE IF NOT EXISTS post_translation_generations (
+    id uuid PRIMARY KEY,
+    post_slug text NOT NULL REFERENCES posts(slug) ON DELETE CASCADE,
+    locale text NOT NULL CHECK (locale IN ('en', 'ja', 'zh-CN')),
+    model_locale text NOT NULL CHECK (model_locale IN ('en', 'ja', 'zh-Hans')),
+    source_title text NOT NULL CHECK (length(btrim(source_title)) > 0),
+    source_body_markdown text NOT NULL CHECK (length(btrim(source_body_markdown)) > 0),
+    source_hash text NOT NULL CHECK (source_hash ~ '^[0-9a-f]{64}$'),
+    prompt_version integer NOT NULL CHECK (prompt_version > 0),
+    status text NOT NULL DEFAULT 'pending' CHECK (
+      status IN ('pending', 'processing', 'ready', 'failed', 'superseded')
+    ),
+    attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+    available_at timestamptz NOT NULL DEFAULT now(),
+    requested_at timestamptz NOT NULL DEFAULT now(),
+    started_at timestamptz,
+    completed_at timestamptz,
+    draft_title text,
+    draft_body_markdown text,
+    tradeoffs jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(tradeoffs) = 'array'),
+    last_error text,
+    CHECK (
+      status <> 'ready'
+      OR (
+        draft_title IS NOT NULL
+        AND length(btrim(draft_title)) > 0
+        AND draft_body_markdown IS NOT NULL
+        AND length(btrim(draft_body_markdown)) > 0
+      )
+    )
+  )
+`;
+
+await sql`
+  CREATE UNIQUE INDEX IF NOT EXISTS post_translation_generations_current_unique
+      ON post_translation_generations (post_slug, locale)
+   WHERE status IN ('pending', 'processing', 'ready')
+`;
+
+await sql`
+  CREATE INDEX IF NOT EXISTS post_translation_generations_latest_idx
+      ON post_translation_generations (post_slug, locale, requested_at DESC, id DESC)
+`;
+
+await sql`
   CREATE TABLE IF NOT EXISTS post_study_generations (
     id uuid PRIMARY KEY,
     post_slug text NOT NULL,

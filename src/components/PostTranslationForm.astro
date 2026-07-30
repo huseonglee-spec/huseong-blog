@@ -3,16 +3,22 @@ import { renderPostMarkdown } from "../lib/markdown";
 import {
   POST_TRANSLATION_LOCALES,
   translationLocaleLabel,
+  type PostTranslationLocale,
 } from "../lib/post-translation";
 import type { BlogPost } from "../lib/posts";
 
 interface Props {
   post: BlogPost;
   csrfToken: string;
+  publishedLocales?: PostTranslationLocale[];
 }
 
-const { post, csrfToken } = Astro.props;
+const { post, csrfToken, publishedLocales = [] } = Astro.props;
 const endpoint = `/api/posts/${encodeURIComponent(post.id)}/translations/`;
+const draftEndpoint = `/api/posts/${encodeURIComponent(post.id)}/translation-draft/`;
+const availableLocales = POST_TRANSLATION_LOCALES.filter(
+  (locale) => !publishedLocales.includes(locale),
+);
 const { html: sourceHtml } = await renderPostMarkdown(post.bodyMarkdown);
 ---
 
@@ -22,9 +28,13 @@ const { html: sourceHtml } = await renderPostMarkdown(post.bodyMarkdown);
   action={endpoint}
   method="post"
   data-post-translation-form
+  data-draft-endpoint={draftEndpoint}
   hidden
 >
   <input type="hidden" name="csrfToken" value={csrfToken} />
+  <input type="hidden" name="draftGenerationId" value="" />
+  <input type="hidden" name="draftSourceHash" value="" />
+  <input type="hidden" name="draftPromptVersion" value="" />
 
   <div class="translation-workspace">
     <aside class="translation-source" lang="ko" aria-label="한국어 원문">
@@ -36,48 +46,76 @@ const { html: sourceHtml } = await renderPostMarkdown(post.bodyMarkdown);
       <div class="translation-source-body post-body" set:html={sourceHtml} />
     </aside>
 
-    <section class="translation-editor" aria-label="새 언어판 작성">
+    <section class="translation-editor" aria-label="새 언어판 초안 검토">
       <header class="translation-form-header">
         <span>새 언어판</span>
-        <strong>번역해서 바로 발행</strong>
+        <strong>번역 초안을 검토하고 직접 발행</strong>
+        <p>OAuth worker가 제안한 초안을 고치거나, 처음부터 직접 작성할 수 있습니다.</p>
       </header>
 
-      <label class="translation-field" for={`translation-locale-${post.id}`}>
-        <span>언어</span>
-        <select id={`translation-locale-${post.id}`} name="locale" required>
-          {POST_TRANSLATION_LOCALES.map((locale) => (
-            <option value={locale}>{translationLocaleLabel(locale)}</option>
-          ))}
-        </select>
-      </label>
+      {availableLocales.length > 0 ? (
+        <>
+          <label class="translation-field" for={`translation-locale-${post.id}`}>
+            <span>언어</span>
+            <select id={`translation-locale-${post.id}`} name="locale" required>
+              {availableLocales.map((locale) => (
+                <option value={locale}>{translationLocaleLabel(locale)}</option>
+              ))}
+            </select>
+          </label>
 
-      <label class="translation-field" for={`translation-title-${post.id}`}>
-        <span>번역 제목</span>
-        <input
-          id={`translation-title-${post.id}`}
-          name="title"
-          type="text"
-          maxlength="200"
-          autocomplete="off"
-          required
-        />
-      </label>
+          <section class="translation-generation" aria-label="번역 초안 생성">
+            <div>
+              <span class="translation-state" data-translation-state>직접 작성 가능</span>
+              <button type="button" data-generate-translation>번역 초안 생성</button>
+              <button type="button" data-manual-translation hidden>직접 작성으로 전환</button>
+            </div>
+            <p data-generation-status aria-live="polite">
+              생성 전에는 공개 글에 아무 변화가 없습니다.
+            </p>
+          </section>
 
-      <label class="translation-field" for={`translation-body-${post.id}`}>
-        <span>번역 본문 · Markdown</span>
-        <textarea
-          id={`translation-body-${post.id}`}
-          name="bodyMarkdown"
-          maxlength="170000"
-          required
-        ></textarea>
-      </label>
+          <label class="translation-field" for={`translation-title-${post.id}`}>
+            <span>번역 제목</span>
+            <input
+              id={`translation-title-${post.id}`}
+              name="title"
+              type="text"
+              maxlength="200"
+              autocomplete="off"
+              required
+            />
+          </label>
+
+          <label class="translation-field" for={`translation-body-${post.id}`}>
+            <span>번역 본문 · Markdown</span>
+            <textarea
+              id={`translation-body-${post.id}`}
+              name="bodyMarkdown"
+              maxlength="170000"
+              required
+            ></textarea>
+          </label>
+
+          <section class="translation-tradeoffs" data-translation-tradeoffs hidden>
+            <header>
+              <span>의미·문체 절충 메모</span>
+              <p>발행되는 제목과 본문에는 포함되지 않습니다.</p>
+            </header>
+            <ol data-translation-tradeoff-list></ol>
+          </section>
+        </>
+      ) : (
+        <p class="translation-complete">English, 日本語, 简体中文 언어판이 모두 발행되어 있습니다.</p>
+      )}
 
       <footer class="translation-form-footer">
         <p data-translation-status aria-live="polite"></p>
         <div>
           <button type="button" class="text-button" data-cancel-translation>취소</button>
-          <button type="submit" class="publish-button">언어판 발행</button>
+          {availableLocales.length > 0 && (
+            <button type="submit" class="publish-button">언어판 발행</button>
+          )}
         </div>
       </footer>
     </section>
@@ -85,18 +123,310 @@ const { html: sourceHtml } = await renderPostMarkdown(post.bodyMarkdown);
 </form>
 
 <script>
-  import { initializeInlineForms } from "../lib/client/inline-form";
+  interface DraftResponse {
+    error?: string;
+    status?: "idle" | "pending" | "processing" | "ready" | "failed" | "superseded" | "published";
+    sourceHash?: string;
+    promptVersion?: number;
+    generationId?: string;
+    title?: string;
+    bodyMarkdown?: string;
+    tradeoffs?: Array<{
+      sourcePhrase: string;
+      selectedTranslation: string;
+      reason: string;
+    }>;
+    location?: string;
+  }
 
-  initializeInlineForms({
-    formSelector: "[data-post-translation-form]",
-    triggerSelector: "[data-add-translation]",
-    cancelSelector: "[data-cancel-translation]",
-    statusSelector: "[data-translation-status]",
-    focusSelector: "[name=locale]",
-    method: "POST",
-    pendingMessage: "발행 중…",
-    fallbackError: "언어판을 발행하지 못했습니다.",
-    navigation: "assign",
+  const stateLabels: Record<NonNullable<DraftResponse["status"]>, string> = {
+    idle: "직접 작성 가능",
+    pending: "생성 대기",
+    processing: "번역 중",
+    ready: "초안 준비됨",
+    failed: "생성 실패",
+    superseded: "원문 변경됨",
+    published: "이미 발행됨",
+  };
+
+  document.querySelectorAll<HTMLFormElement>("[data-post-translation-form]").forEach((form) => {
+    if (form.dataset.ready === "true") return;
+    form.dataset.ready = "true";
+
+    const article = form.closest<HTMLElement>("[data-post]");
+    const display = article?.querySelector<HTMLElement>("[data-post-display]");
+    const trigger = article?.querySelector<HTMLButtonElement>("[data-add-translation]");
+    const cancelButton = form.querySelector<HTMLButtonElement>("[data-cancel-translation]");
+    const generateButton = form.querySelector<HTMLButtonElement>("[data-generate-translation]");
+    const manualButton = form.querySelector<HTMLButtonElement>("[data-manual-translation]");
+    const publishButton = form.querySelector<HTMLButtonElement>("[type=submit]");
+    const locale = form.querySelector<HTMLSelectElement>("[name=locale]");
+    const title = form.querySelector<HTMLInputElement>("[name=title]");
+    const body = form.querySelector<HTMLTextAreaElement>("[name=bodyMarkdown]");
+    const csrf = form.querySelector<HTMLInputElement>("[name=csrfToken]");
+    const generationId = form.querySelector<HTMLInputElement>("[name=draftGenerationId]");
+    const sourceHash = form.querySelector<HTMLInputElement>("[name=draftSourceHash]");
+    const promptVersion = form.querySelector<HTMLInputElement>("[name=draftPromptVersion]");
+    const state = form.querySelector<HTMLElement>("[data-translation-state]");
+    const generationStatus = form.querySelector<HTMLElement>("[data-generation-status]");
+    const publishStatus = form.querySelector<HTMLElement>("[data-translation-status]");
+    const tradeoffSection = form.querySelector<HTMLElement>("[data-translation-tradeoffs]");
+    const tradeoffList = form.querySelector<HTMLOListElement>("[data-translation-tradeoff-list]");
+    let currentStatus: NonNullable<DraftResponse["status"]> = "idle";
+    let requestInFlight = false;
+    let pollGeneration = 0;
+
+    const resizeBody = () => {
+      if (!body || form.hidden) return;
+      body.style.height = "auto";
+      body.style.height = `${Math.max(body.scrollHeight, window.innerHeight * 0.5)}px`;
+    };
+
+    const setControls = () => {
+      const generating = currentStatus === "pending" || currentStatus === "processing";
+      const published = currentStatus === "published";
+      const staleGeneratedDraft = Boolean(
+        generationId?.value && (currentStatus === "failed" || currentStatus === "superseded"),
+      );
+      if (locale) locale.disabled = requestInFlight || generating || published;
+      if (generateButton) {
+        generateButton.disabled = requestInFlight || generating || published || currentStatus === "ready";
+      }
+      if (manualButton) manualButton.hidden = !staleGeneratedDraft;
+      if (publishButton) {
+        publishButton.disabled = requestInFlight || generating || published || staleGeneratedDraft;
+      }
+      if (cancelButton) cancelButton.disabled = requestInFlight;
+    };
+
+    const setPublishStatus = (message: string, error = false) => {
+      if (!publishStatus) return;
+      publishStatus.textContent = message;
+      publishStatus.dataset.error = String(error);
+    };
+
+    const clearDraftReference = () => {
+      if (generationId) generationId.value = "";
+      if (sourceHash) sourceHash.value = "";
+      if (promptVersion) promptVersion.value = "";
+    };
+
+    const clearEditor = () => {
+      if (title) title.value = "";
+      if (body) body.value = "";
+      clearDraftReference();
+      if (tradeoffList) tradeoffList.replaceChildren();
+      if (tradeoffSection) tradeoffSection.hidden = true;
+      resizeBody();
+    };
+
+    const renderTradeoffs = (items: DraftResponse["tradeoffs"]) => {
+      if (!tradeoffList || !tradeoffSection) return;
+      tradeoffList.replaceChildren();
+      for (const item of items ?? []) {
+        const row = document.createElement("li");
+        const phrase = document.createElement("strong");
+        phrase.textContent = `${item.sourcePhrase} → ${item.selectedTranslation}`;
+        const reason = document.createElement("p");
+        reason.textContent = item.reason;
+        row.append(phrase, reason);
+        tradeoffList.append(row);
+      }
+      tradeoffSection.hidden = tradeoffList.childElementCount === 0;
+    };
+
+    const applyDraft = (draft: DraftResponse) => {
+      currentStatus = draft.status ?? "idle";
+      if (state) state.textContent = stateLabels[currentStatus];
+      if (!generationStatus) return;
+      switch (currentStatus) {
+        case "pending":
+          generationStatus.textContent = "Linux OAuth worker가 처리할 차례를 기다리고 있습니다.";
+          break;
+        case "processing":
+          generationStatus.textContent = "원문의 생각과 문체를 보존하며 번역하고 있습니다.";
+          break;
+        case "ready":
+          if (
+            title && body && generationId && sourceHash && promptVersion &&
+            draft.title && draft.bodyMarkdown && draft.generationId &&
+            draft.sourceHash && draft.promptVersion
+          ) {
+            title.value = draft.title;
+            body.value = draft.bodyMarkdown;
+            generationId.value = draft.generationId;
+            sourceHash.value = draft.sourceHash;
+            promptVersion.value = String(draft.promptVersion);
+            renderTradeoffs(draft.tradeoffs);
+            resizeBody();
+          }
+          generationStatus.textContent = "초안을 고친 뒤 언어판 발행을 눌러야 독자에게 보입니다.";
+          break;
+        case "failed":
+          generationStatus.textContent = draft.error ?? "번역 초안을 만들지 못했습니다. 다시 생성하거나 직접 작성해 주세요.";
+          break;
+        case "superseded":
+          generationStatus.textContent = "원문이 바뀌어 이전 초안을 발행할 수 없습니다. 다시 생성해 주세요.";
+          break;
+        case "published":
+          clearDraftReference();
+          generationStatus.textContent = "이 언어판은 이미 발행되었습니다.";
+          break;
+        default:
+          clearDraftReference();
+          generationStatus.textContent = "번역 초안을 생성하거나 제목과 본문을 직접 작성할 수 있습니다.";
+      }
+      if (generateButton && currentStatus === "failed") generateButton.textContent = "번역 초안 다시 생성";
+      else if (generateButton) generateButton.textContent = "번역 초안 생성";
+      setControls();
+    };
+
+    const requestJson = async (input: RequestInfo | URL, init: RequestInit): Promise<DraftResponse> => {
+      const response = await fetch(input, init);
+      const result = await response.json() as DraftResponse;
+      if (!response.ok) throw new Error(result.error ?? "요청을 처리하지 못했습니다.");
+      return result;
+    };
+
+    const loadDraft = async (generation: number): Promise<void> => {
+      if (!locale || !csrf || !form.dataset.draftEndpoint) return;
+      try {
+        const url = new URL(form.dataset.draftEndpoint, window.location.origin);
+        url.searchParams.set("locale", locale.value);
+        const draft = await requestJson(url, {
+          method: "GET",
+          credentials: "same-origin",
+          headers: {
+            Accept: "application/json",
+            "x-csrf-token": csrf.value,
+          },
+        });
+        if (generation !== pollGeneration) return;
+        applyDraft(draft);
+        if (draft.status === "pending" || draft.status === "processing") {
+          window.setTimeout(() => void loadDraft(generation), 1_500);
+        }
+      } catch (error) {
+        if (generation !== pollGeneration) return;
+        if (generationStatus) {
+          generationStatus.textContent = error instanceof Error
+            ? error.message
+            : "번역 초안 상태를 확인하지 못했습니다.";
+        }
+        setControls();
+      }
+    };
+
+    trigger?.addEventListener("click", () => {
+      if (!display) return;
+      display.hidden = true;
+      form.hidden = false;
+      trigger.setAttribute("aria-expanded", "true");
+      resizeBody();
+      locale?.focus();
+      pollGeneration += 1;
+      void loadDraft(pollGeneration);
+    });
+
+    cancelButton?.addEventListener("click", () => {
+      if (requestInFlight || !display) return;
+      pollGeneration += 1;
+      form.hidden = true;
+      display.hidden = false;
+      trigger?.setAttribute("aria-expanded", "false");
+      trigger?.focus();
+    });
+
+    locale?.addEventListener("change", () => {
+      pollGeneration += 1;
+      currentStatus = "idle";
+      clearEditor();
+      setPublishStatus("");
+      setControls();
+      void loadDraft(pollGeneration);
+    });
+    body?.addEventListener("input", resizeBody);
+
+    manualButton?.addEventListener("click", () => {
+      pollGeneration += 1;
+      currentStatus = "idle";
+      clearEditor();
+      if (state) state.textContent = stateLabels.idle;
+      if (generationStatus) {
+        generationStatus.textContent = "이전 생성 초안을 버렸습니다. 제목과 본문을 직접 작성할 수 있습니다.";
+      }
+      setPublishStatus("");
+      setControls();
+      title?.focus();
+    });
+
+    generateButton?.addEventListener("click", async () => {
+      if (!locale || !csrf || !form.dataset.draftEndpoint || requestInFlight) return;
+      requestInFlight = true;
+      pollGeneration += 1;
+      currentStatus = "pending";
+      if (state) state.textContent = stateLabels.pending;
+      if (generationStatus) generationStatus.textContent = "번역 초안 생성 요청을 저장하고 있습니다.";
+      setPublishStatus("");
+      setControls();
+      const generation = pollGeneration;
+      try {
+        const payload = new FormData();
+        payload.set("csrfToken", csrf.value);
+        payload.set("locale", locale.value);
+        await requestJson(form.dataset.draftEndpoint, {
+          method: "POST",
+          body: payload,
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        });
+        requestInFlight = false;
+        setControls();
+        await loadDraft(generation);
+      } catch (error) {
+        requestInFlight = false;
+        currentStatus = "failed";
+        if (state) state.textContent = stateLabels.failed;
+        if (generationStatus) {
+          generationStatus.textContent = error instanceof Error
+            ? error.message
+            : "번역 초안 생성을 요청하지 못했습니다.";
+        }
+        setControls();
+      }
+    });
+
+    form.addEventListener("keydown", (event) => {
+      if (!requestInFlight && (event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault();
+        form.requestSubmit();
+      }
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!publishButton || requestInFlight) return;
+      requestInFlight = true;
+      setPublishStatus("발행 중…");
+      setControls();
+      try {
+        const result = await requestJson(form.action, {
+          method: "POST",
+          body: new FormData(form),
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        });
+        if (!result.location) throw new Error("발행 위치를 확인하지 못했습니다.");
+        window.location.assign(result.location);
+      } catch (error) {
+        requestInFlight = false;
+        setPublishStatus(
+          error instanceof Error ? error.message : "언어판을 발행하지 못했습니다.",
+          true,
+        );
+        setControls();
+      }
+    });
   });
 </script>
 
@@ -104,23 +434,27 @@ const { html: sourceHtml } = await renderPostMarkdown(post.bodyMarkdown);
   .post-translation-form { width:100%; }
   .post-translation-form[hidden] { display:none; }
   .translation-workspace { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:clamp(2.2rem,4vw,4rem); align-items:start; }
-  .translation-source { position:sticky; top:2rem; max-height:calc(100svh - 4rem); padding-right:clamp(1.4rem,3vw,2.6rem); overflow-y:auto; border-right:1px solid var(--line); scrollbar-width:none; }
+  .translation-source { position:sticky; top:2rem; max-height:calc(100svh - 4rem); min-width:0; padding-right:clamp(1.4rem,3vw,2.6rem); overflow-y:auto; border-right:1px solid var(--line); scrollbar-width:none; }
   .translation-source::-webkit-scrollbar { display:none; }
   .translation-source-header { padding-bottom:1.2rem; border-bottom:1px solid var(--line); }
   .translation-source-header > span,
-  .translation-form-header span,
-  .translation-field > span { color:var(--muted, var(--ink-soft)); font-size:.65rem; }
-  .translation-source-header h2 { margin:.65rem 0 0; font-size:clamp(1.45rem,2.8vw,2.15rem); line-height:1.3; letter-spacing:-.035em; }
+  .translation-form-header > span,
+  .translation-field > span,
+  .translation-tradeoffs header > span { color:var(--muted, var(--ink-soft)); font-size:.65rem; }
+  .translation-source-header h2 { margin:.65rem 0 0; font-size:clamp(1.45rem,2.8vw,2.15rem); line-height:1.3; letter-spacing:-.035em; overflow-wrap:anywhere; }
   .translation-source-header p { margin:.65rem 0 0; color:var(--muted, var(--ink-soft)); font-size:.82rem; line-height:1.65; }
-  .translation-source-body.post-body { margin-top:1.7rem; padding-bottom:2rem; font-size:.92rem; line-height:1.85; }
-  .translation-editor { display:grid; min-width:0; gap:1.8rem; }
+  .translation-source-body.post-body { margin-top:1.7rem; padding-bottom:2rem; font-size:.92rem; line-height:1.85; overflow-wrap:anywhere; }
+  .translation-editor { display:grid; min-width:0; gap:1.7rem; }
   .translation-form-header { display:grid; gap:.5rem; padding-bottom:1rem; border-bottom:1px solid var(--line); }
   .translation-form-header strong { font-size:1rem; font-weight:600; }
-  .translation-field { display:grid; gap:.55rem; }
+  .translation-form-header p { margin:0; color:var(--muted, var(--ink-soft)); font-size:.76rem; line-height:1.6; }
+  .translation-field { display:grid; min-width:0; gap:.55rem; }
   .translation-field select,
   .translation-field input,
   .translation-field textarea {
+    box-sizing:border-box;
     width:100%;
+    min-width:0;
     padding:.8rem 0;
     border:0;
     border-bottom:1px solid var(--line);
@@ -134,14 +468,33 @@ const { html: sourceHtml } = await renderPostMarkdown(post.bodyMarkdown);
   .translation-field select:focus-visible,
   .translation-field input:focus-visible,
   .translation-field textarea:focus-visible { box-shadow:inset 0 -2px 0 color-mix(in srgb,var(--accent, var(--link)) 58%,transparent); }
+  .translation-generation { display:grid; gap:.7rem; padding:1rem; border:1px solid var(--line); background:color-mix(in srgb,var(--paper-side) 56%,transparent); }
+  .translation-generation > div { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.7rem; }
+  .translation-generation p { margin:0; color:var(--muted, var(--ink-soft)); font-size:.76rem; line-height:1.55; overflow-wrap:anywhere; }
+  .translation-state { padding:.28rem .55rem; border-radius:999px; color:var(--muted, var(--ink-soft)); background:color-mix(in srgb,var(--paper) 72%,transparent); font-size:.66rem; }
+  .translation-generation button,
+  .translation-form-footer button { min-height:2.35rem; padding:.45rem .85rem; border:1px solid var(--ink); border-radius:2px; font:inherit; font-size:.82rem; cursor:pointer; }
+  .translation-generation button { color:var(--ink); background:transparent; }
+  .translation-generation [data-manual-translation][hidden] { display:none; }
+  .translation-generation button:focus-visible,
+  .translation-form-footer button:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+  .translation-generation button:disabled,
+  .translation-form-footer button:disabled { cursor:wait; opacity:.55; }
+  .translation-tradeoffs { display:grid; gap:1rem; padding-top:1rem; border-top:1px solid var(--line); }
+  .translation-tradeoffs[hidden] { display:none; }
+  .translation-tradeoffs header { display:grid; gap:.3rem; }
+  .translation-tradeoffs header p { margin:0; color:var(--muted, var(--ink-soft)); font-size:.72rem; }
+  .translation-tradeoffs ol { display:grid; gap:.8rem; margin:0; padding:0; list-style:none; }
+  .translation-tradeoffs li { padding:.85rem; border-left:2px solid var(--accent); background:color-mix(in srgb,var(--paper-side) 50%,transparent); overflow-wrap:anywhere; }
+  .translation-tradeoffs li strong { font-size:.78rem; line-height:1.55; }
+  .translation-tradeoffs li p { margin:.35rem 0 0; color:var(--muted, var(--ink-soft)); font-size:.74rem; line-height:1.6; }
+  .translation-complete { margin:0; padding:1rem; border:1px solid var(--line); color:var(--muted, var(--ink-soft)); font-size:.82rem; line-height:1.6; }
   .translation-form-footer { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding-top:1rem; border-top:1px solid var(--line); }
-  .translation-form-footer p { min-height:1.5em; margin:0; color:var(--muted, var(--ink-soft)); font-size:.8rem; }
-  .translation-form-footer p[data-error="true"] { color:#9a3e2e; }
-  .translation-form-footer div { display:flex; align-items:center; gap:.8rem; }
-  .translation-form-footer button { padding:.45rem .85rem; border:1px solid var(--ink); border-radius:2px; font:inherit; font-size:.82rem; cursor:pointer; }
+  .translation-form-footer > p { min-height:1.5em; margin:0; color:var(--muted, var(--ink-soft)); font-size:.8rem; overflow-wrap:anywhere; }
+  .translation-form-footer > p[data-error="true"] { color:#9a3e2e; }
+  .translation-form-footer > div { display:flex; flex:none; align-items:center; gap:.8rem; }
   .text-button { color:var(--ink); background:transparent; }
   .publish-button { color:var(--paper, var(--sheet)); background:var(--ink); }
-  .translation-form-footer button:disabled { cursor:wait; opacity:.6; }
 
   @media (max-width:780px) {
     .translation-workspace { grid-template-columns:1fr; gap:2.4rem; }
@@ -150,6 +503,11 @@ const { html: sourceHtml } = await renderPostMarkdown(post.bodyMarkdown);
   }
 
   @media (max-width:560px) {
-    .translation-form-footer { align-items:flex-end; flex-direction:column; }
+    .translation-generation > div,
+    .translation-form-footer { align-items:stretch; flex-direction:column; }
+    .translation-generation button,
+    .translation-form-footer button { min-height:44px; }
+    .translation-form-footer > div { width:100%; }
+    .translation-form-footer > div button { flex:1; }
   }
 </style>
