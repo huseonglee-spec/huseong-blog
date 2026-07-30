@@ -174,6 +174,7 @@ const { html: sourceHtml } = await renderPostMarkdown(post.bodyMarkdown);
     const tradeoffList = form.querySelector<HTMLOListElement>("[data-translation-tradeoff-list]");
     let currentStatus: NonNullable<DraftResponse["status"]> = "idle";
     let requestInFlight = false;
+    let draftRequestsInFlight = 0;
     let pollGeneration = 0;
 
     const resizeBody = () => {
@@ -185,10 +186,13 @@ const { html: sourceHtml } = await renderPostMarkdown(post.bodyMarkdown);
     const setControls = () => {
       const generating = currentStatus === "pending" || currentStatus === "processing";
       const published = currentStatus === "published";
+      const editorLocked = requestInFlight || draftRequestsInFlight > 0 || generating || published;
       const staleGeneratedDraft = Boolean(
         generationId?.value && (currentStatus === "failed" || currentStatus === "superseded"),
       );
       if (locale) locale.disabled = requestInFlight || generating || published;
+      if (title) title.readOnly = editorLocked;
+      if (body) body.readOnly = editorLocked;
       if (generateButton) {
         generateButton.disabled = requestInFlight || generating || published || currentStatus === "ready";
       }
@@ -250,7 +254,8 @@ const { html: sourceHtml } = await renderPostMarkdown(post.bodyMarkdown);
           if (
             title && body && generationId && sourceHash && promptVersion &&
             draft.title && draft.bodyMarkdown && draft.generationId &&
-            draft.sourceHash && draft.promptVersion
+            draft.sourceHash && draft.promptVersion &&
+            generationId.value !== draft.generationId
           ) {
             title.value = draft.title;
             body.value = draft.bodyMarkdown;
@@ -290,6 +295,8 @@ const { html: sourceHtml } = await renderPostMarkdown(post.bodyMarkdown);
 
     const loadDraft = async (generation: number): Promise<void> => {
       if (!locale || !csrf || !form.dataset.draftEndpoint) return;
+      draftRequestsInFlight += 1;
+      setControls();
       try {
         const url = new URL(form.dataset.draftEndpoint, window.location.origin);
         url.searchParams.set("locale", locale.value);
@@ -313,6 +320,8 @@ const { html: sourceHtml } = await renderPostMarkdown(post.bodyMarkdown);
             ? error.message
             : "번역 초안 상태를 확인하지 못했습니다.";
         }
+      } finally {
+        draftRequestsInFlight = Math.max(0, draftRequestsInFlight - 1);
         setControls();
       }
     };
@@ -406,13 +415,14 @@ const { html: sourceHtml } = await renderPostMarkdown(post.bodyMarkdown);
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (!publishButton || requestInFlight) return;
+      const payload = new FormData(form);
       requestInFlight = true;
       setPublishStatus("발행 중…");
       setControls();
       try {
         const result = await requestJson(form.action, {
           method: "POST",
-          body: new FormData(form),
+          body: payload,
           credentials: "same-origin",
           headers: { Accept: "application/json" },
         });
@@ -468,6 +478,8 @@ const { html: sourceHtml } = await renderPostMarkdown(post.bodyMarkdown);
   .translation-field select:focus-visible,
   .translation-field input:focus-visible,
   .translation-field textarea:focus-visible { box-shadow:inset 0 -2px 0 color-mix(in srgb,var(--accent, var(--link)) 58%,transparent); }
+  .translation-field input:read-only,
+  .translation-field textarea:read-only { cursor:progress; opacity:.68; }
   .translation-generation { display:grid; gap:.7rem; padding:1rem; border:1px solid var(--line); background:color-mix(in srgb,var(--paper-side) 56%,transparent); }
   .translation-generation > div { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.7rem; }
   .translation-generation p { margin:0; color:var(--muted, var(--ink-soft)); font-size:.76rem; line-height:1.55; overflow-wrap:anywhere; }

@@ -264,6 +264,15 @@ function exactKeys(record: Record<string, unknown>, expected: readonly string[])
     actual.every((key, index) => key === [...expected].sort()[index]);
 }
 
+function includesTranslatedPhrase(document: string, phrase: string): boolean {
+  const normalizedDocument = document.normalize("NFC");
+  const normalizedPhrase = phrase.normalize("NFC");
+  return normalizedDocument.includes(normalizedPhrase) ||
+    normalizedDocument.toLocaleLowerCase("en-US").includes(
+      normalizedPhrase.toLocaleLowerCase("en-US"),
+    );
+}
+
 function strictString(value: unknown, maxLength: number, label: string): string {
   if (typeof value !== "string" || !value || value !== value.trim() || value.length > maxLength) {
     throw new TypeError(`${label} 형식이 올바르지 않습니다.`);
@@ -428,7 +437,10 @@ export function parseGeneratedPostTranslation(
       MAX_TRADEOFF_REASON_LENGTH,
       "절충 메모 이유",
     );
-    if (!sourceDocument.includes(sourcePhrase) || !translatedDocument.includes(selectedTranslation)) {
+    if (!sourceDocument.includes(sourcePhrase) || !includesTranslatedPhrase(
+      translatedDocument,
+      selectedTranslation,
+    )) {
       throw new TypeError("절충 메모가 원문 또는 번역에 연결되지 않습니다.");
     }
     return { sourcePhrase, selectedTranslation, reason };

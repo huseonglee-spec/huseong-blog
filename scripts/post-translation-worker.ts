@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { loadEnvFile } from "node:process";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { neon } from "@neondatabase/serverless";
@@ -32,9 +33,18 @@ if (!databaseUrl) throw new Error("DATABASE_URL is not configured");
 
 const sql = neon(databaseUrl);
 const execFileAsync = promisify(execFile);
+const configuredHermesProvider = process.env.HUSEONG_BLOG_TRANSLATION_HERMES_PROVIDER ?? "openai-codex";
+if (configuredHermesProvider !== "openai-codex") {
+  throw new Error("Translation worker requires the openai-codex OAuth provider");
+}
 const hermesInvocation = {
-  bin: process.env.HUSEONG_BLOG_TRANSLATION_HERMES_BIN ?? "/home/huseong/.local/bin/hermes",
+  bridgePythonBin: process.env.HUSEONG_BLOG_TRANSLATION_HERMES_PYTHON ??
+    "/home/huseong/.hermes/hermes-agent/venv/bin/python3",
+  bridgeScriptPath: process.env.HUSEONG_BLOG_TRANSLATION_HERMES_BRIDGE ??
+    fileURLToPath(new URL("./hermes-oauth-stdin-bridge.py", import.meta.url)),
+  hermesBin: process.env.HUSEONG_BLOG_TRANSLATION_HERMES_BIN ?? "/home/huseong/.local/bin/hermes",
   profile: process.env.HUSEONG_BLOG_TRANSLATION_HERMES_PROFILE ?? "linux-coder",
+  provider: "openai-codex" as const,
   model: process.env.HUSEONG_BLOG_TRANSLATION_HERMES_MODEL ?? "gpt-5.6-sol",
   timeoutMs: 240_000,
 };

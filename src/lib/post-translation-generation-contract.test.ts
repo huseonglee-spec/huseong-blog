@@ -8,6 +8,7 @@ const publishRouteUrl = new URL("../pages/api/posts/[slug]/translations.ts", imp
 const publisherUrl = new URL("../lib/server/publish-post-translation.ts", import.meta.url);
 const queueUrl = new URL("../lib/server/post-translation-draft-queue.ts", import.meta.url);
 const helperUrl = new URL("../lib/server/hermes-oauth.ts", import.meta.url);
+const bridgeUrl = new URL("../../scripts/hermes-oauth-stdin-bridge.py", import.meta.url);
 const authUrl = new URL("../lib/server/auth-core.ts", import.meta.url);
 const contentUrl = new URL("../lib/content.ts", import.meta.url);
 const sitemapUrl = new URL("../pages/sitemap.xml.ts", import.meta.url);
@@ -84,7 +85,7 @@ describe("번역 초안 end-to-end 계약", () => {
   });
 
   it("Linux worker는 API key가 아닌 linux-coder OAuth model로 claim·retry·timeout·cleanup한다", async () => {
-    const [worker, helper, service] = await sources(workerUrl, helperUrl, serviceUrl);
+    const [worker, helper, bridge, service] = await sources(workerUrl, helperUrl, bridgeUrl, serviceUrl);
 
     expect(worker).toContain('"gpt-5.6-sol"');
     expect(worker).toContain('"linux-coder"');
@@ -97,13 +98,21 @@ describe("번역 초안 end-to-end 계약", () => {
     expect(worker).toContain("completeGeneration");
     expect(worker).toContain("supersedeGeneration");
     expect(helper).toContain('key.toUpperCase() !== "OPENAI_API_KEY"');
-    expect(helper).toContain('"--ignore-rules"');
-    expect(helper).toContain('"--pass-session-id"');
+    expect(helper).toContain("stdin: prompt");
+    expect(helper).toContain("hermesOAuthBridgeArgs(invocation)");
+    expect(bridge).toContain('choices=("openai-codex",)');
+    expect(bridge).toContain('"--ignore-rules"');
+    expect(bridge).toContain('"--pass-session-id"');
+    expect(bridge).toContain('"-q"');
+    expect(worker).toContain('configuredHermesProvider !== "openai-codex"');
     expect(helper).toContain("finally");
     expect(helper).toContain("deleteHermesSession");
     expect(service).toContain("Environment=HOME=/home/huseong");
     expect(service).toContain("HUSEONG_BLOG_TRANSLATION_HERMES_PROFILE=linux-coder");
+    expect(service).toContain("HUSEONG_BLOG_TRANSLATION_HERMES_PROVIDER=openai-codex");
     expect(service).toContain("HUSEONG_BLOG_TRANSLATION_HERMES_MODEL=gpt-5.6-sol");
+    expect(service).toContain("HUSEONG_BLOG_TRANSLATION_HERMES_PYTHON=");
+    expect(service).toContain("HUSEONG_BLOG_TRANSLATION_HERMES_BRIDGE=");
   });
 
   it("draft와 tradeoffs는 공개 content·sitemap query에 직렬화하지 않는다", async () => {

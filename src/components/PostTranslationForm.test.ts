@@ -42,6 +42,22 @@ describe("관리자 새 언어판 초안 화면", () => {
     expect(source).toContain("이전 생성 초안을 버렸습니다");
   });
 
+  it("polling·pending·processing 중 편집을 잠그고 terminal state 뒤 다시 연다", async () => {
+    const source = await readFile(componentUrl, "utf8");
+
+    expect(source).toContain("let draftRequestsInFlight = 0");
+    expect(source).toContain("draftRequestsInFlight += 1");
+    expect(source).toContain("draftRequestsInFlight = Math.max(0, draftRequestsInFlight - 1)");
+    expect(source).toContain(
+      "const editorLocked = requestInFlight || draftRequestsInFlight > 0 || generating || published",
+    );
+    expect(source).toContain("title.readOnly = editorLocked");
+    expect(source).toContain("body.readOnly = editorLocked");
+    expect(source).toContain("generationId.value !== draft.generationId");
+    expect(source).toMatch(/const payload = new FormData\(form\);\s+requestInFlight = true;/);
+    expect(source).toContain("body: payload");
+  });
+
   it("번역 입력 옆의 한국어 원문과 reader에 섞이지 않는 절충 메모를 보여 준다", async () => {
     const source = await readFile(componentUrl, "utf8");
 

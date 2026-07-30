@@ -92,6 +92,22 @@ describe("작가 보존형 번역 생성 계약", () => {
     });
   });
 
+  it("제목 casing만 다른 절충 번역은 문서에 연결된 것으로 본다", () => {
+    const parsed = parseGeneratedPostTranslation({
+      locale: "en",
+      title: sourceTitle,
+      bodyMarkdown: sourceBody,
+      raw: validOutput({
+        tradeoffs: [{
+          sourcePhrase: "빨리 설명하지 않기",
+          selectedTranslation: "not explaining too quickly",
+          reason: "Preserves the title as a personal restraint.",
+        }],
+      }),
+    });
+    expect(parsed.tradeoffs[0]?.selectedTranslation).toBe("not explaining too quickly");
+  });
+
   it("Markdown heading·line break·blockquote·list·link·alt·code를 보존하지 않은 출력을 거부한다", () => {
     for (const bodyMarkdown of [
       translatedBody.replace("## A Sentence", "### A Sentence"),
