@@ -98,6 +98,51 @@ await sql`
 `;
 
 await sql`
+  CREATE TABLE IF NOT EXISTS post_translation_generations (
+    id uuid PRIMARY KEY,
+    post_slug text NOT NULL REFERENCES posts(slug) ON DELETE CASCADE,
+    locale text NOT NULL CHECK (locale IN ('en', 'ja', 'zh-CN')),
+    model_locale text NOT NULL CHECK (model_locale IN ('en', 'ja', 'zh-Hans')),
+    source_title text NOT NULL CHECK (length(btrim(source_title)) > 0),
+    source_body_markdown text NOT NULL CHECK (length(btrim(source_body_markdown)) > 0),
+    source_hash text NOT NULL CHECK (source_hash ~ '^[0-9a-f]{64}$'),
+    prompt_version integer NOT NULL CHECK (prompt_version > 0),
+    status text NOT NULL DEFAULT 'pending' CHECK (
+      status IN ('pending', 'processing', 'ready', 'failed', 'superseded')
+    ),
+    attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+    available_at timestamptz NOT NULL DEFAULT now(),
+    requested_at timestamptz NOT NULL DEFAULT now(),
+    started_at timestamptz,
+    completed_at timestamptz,
+    draft_title text,
+    draft_body_markdown text,
+    tradeoffs jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(tradeoffs) = 'array'),
+    last_error text,
+    CHECK (
+      status <> 'ready'
+      OR (
+        draft_title IS NOT NULL
+        AND length(btrim(draft_title)) > 0
+        AND draft_body_markdown IS NOT NULL
+        AND length(btrim(draft_body_markdown)) > 0
+      )
+    )
+  )
+`;
+
+await sql`
+  CREATE UNIQUE INDEX IF NOT EXISTS post_translation_generations_current_unique
+      ON post_translation_generations (post_slug, locale)
+   WHERE status IN ('pending', 'processing', 'ready')
+`;
+
+await sql`
+  CREATE INDEX IF NOT EXISTS post_translation_generations_latest_idx
+      ON post_translation_generations (post_slug, locale, requested_at DESC, id DESC)
+`;
+
+await sql`
   CREATE TABLE IF NOT EXISTS post_study_generations (
     id uuid PRIMARY KEY,
     post_slug text NOT NULL,
@@ -136,13 +181,38 @@ await sql`
     sort_order integer NOT NULL CHECK (sort_order >= 0),
     kind text NOT NULL CHECK (kind IN ('word', 'expression')),
     text text NOT NULL CHECK (length(btrim(text)) BETWEEN 1 AND 120),
-    reading text,
+    canonical_text text NOT NULL CHECK (length(btrim(canonical_text)) BETWEEN 1 AND 120),
+    reading text CHECK (reading IS NULL OR length(btrim(reading)) BETWEEN 1 AND 120),
     meaning_ko text NOT NULL CHECK (length(btrim(meaning_ko)) BETWEEN 1 AND 500),
     note_ko text NOT NULL CHECK (length(btrim(note_ko)) BETWEEN 1 AND 500),
     context_text text NOT NULL CHECK (length(btrim(context_text)) BETWEEN 1 AND 500),
     created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (generation_id, item_key)
   )
+`;
+
+await sql`
+  ALTER TABLE post_study_items
+    ADD COLUMN IF NOT EXISTS canonical_text text
+`;
+
+await sql`
+  UPDATE post_study_items
+     SET canonical_text = text
+   WHERE canonical_text IS NULL
+`;
+
+await sql`
+  ALTER TABLE post_study_items
+    ALTER COLUMN canonical_text SET NOT NULL,
+    DROP CONSTRAINT IF EXISTS post_study_items_reading_valid,
+    DROP CONSTRAINT IF EXISTS post_study_items_canonical_text_valid,
+    ADD CONSTRAINT post_study_items_canonical_text_valid CHECK (
+      length(btrim(canonical_text)) BETWEEN 1 AND 120
+    ),
+    ADD CONSTRAINT post_study_items_reading_valid CHECK (
+      reading IS NULL OR length(btrim(reading)) BETWEEN 1 AND 120
+    )
 `;
 
 await sql`

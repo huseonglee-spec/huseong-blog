@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 
+import { postMarkdownText } from "./markdown";
 import type { PostTranslationLocale } from "./post-translation";
 
-export const POST_STUDY_PROMPT_VERSION = 1;
+export const POST_STUDY_PROMPT_VERSION = 2;
 
 export type PostStudyItemKind = "word" | "expression";
 export type PostStudyGenerationStatus =
@@ -16,6 +17,7 @@ export interface PostStudyItem {
   itemKey: string;
   kind: PostStudyItemKind;
   text: string;
+  canonicalText: string;
   reading?: string;
   meaningKo: string;
   noteKo: string;
@@ -24,6 +26,7 @@ export interface PostStudyItem {
 
 export interface PostStudyPanelView {
   locale: PostTranslationLocale;
+  sourceHash: string;
   status: PostStudyGenerationStatus;
   items: PostStudyItem[];
   isRefreshing: boolean;
@@ -76,6 +79,16 @@ export function postStudySourceHash(title: string, bodyMarkdown: string): string
     .digest("hex");
 }
 
+export function parsePostStudyMaxJobs(value: string | undefined): number {
+  if (value === undefined || value === "") return 3;
+  if (!/^\d+$/u.test(value)) throw new TypeError("HUSEONG_BLOG_STUDY_MAX_JOBS must be an integer");
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > 10) {
+    throw new RangeError("HUSEONG_BLOG_STUDY_MAX_JOBS must be between 1 and 10");
+  }
+  return parsed;
+}
+
 export function buildPostStudyPrompt(input: BuildPostStudyPromptInput): string {
   const levelRule = input.locale === "en"
     ? [
@@ -104,12 +117,14 @@ export function buildPostStudyPrompt(input: BuildPostStudyPromptInput): string {
     "아래 블로그 언어판에서 작성자가 공부할 단어와 표현을 골라라.",
     "도구를 사용하지 말고 설명 문장이나 Markdown 없이 JSON 객체 하나만 출력한다.",
     levelRule,
-    "모든 text와 context는 반드시 제공된 본문에 실제로 나타난 문자열이어야 한다.",
+    "text와 context는 반드시 제공된 본문에 실제로 나타난 문자열이어야 한다.",
+    "canonicalText에는 같은 단어·표현의 활용형을 다시 추천하지 않도록 표제어를 적는다.",
+    "영어는 소문자 원형(예: took off → take off), 일본어는 사전형, 중국어는 기본 표기를 쓴다. 동의어끼리는 합치지 않는다.",
     "meaningKo는 짧은 한국어 뜻이고, noteKo는 이 글의 문맥에서 왜 이렇게 쓰였는지 쉬운 한국어로 설명한다.",
     "kind는 word 또는 expression만 사용한다.",
     "이미 배워서 숨긴 항목은 철자, 대소문자, 문장부호가 조금 달라도 다시 고르지 않는다.",
     "출력 형식:",
-    '{"items":[{"kind":"word|expression","text":"본문의 원문","reading":null,"meaningKo":"한국어 뜻","noteKo":"문맥 설명","context":"본문의 짧은 구절"}]}',
+    '{"items":[{"kind":"word|expression","text":"본문의 원문","canonicalText":"표제어","reading":null,"meaningKo":"한국어 뜻","noteKo":"문맥 설명","context":"본문의 짧은 구절"}]}',
     "",
     `언어: ${input.locale}`,
     `제목: ${input.title}`,
@@ -147,10 +162,10 @@ function record(value: unknown): Record<string, unknown> | undefined {
 
 function appearsInBody(
   locale: PostTranslationLocale,
-  bodyMarkdown: string,
+  bodyText: string,
   text: string,
 ): boolean {
-  const normalizedBody = normalizeComparableText(locale, bodyMarkdown);
+  const normalizedBody = normalizeComparableText(locale, bodyText);
   const normalizedText = normalizeComparableText(locale, text);
   if (!normalizedText) return false;
   if (locale === "en") {
@@ -166,29 +181,47 @@ export function parseGeneratedPostStudyItems(
   if (!payload || !Array.isArray(payload.items)) {
     throw new TypeError("학습 항목 JSON 형식이 올바르지 않습니다.");
   }
+  if (payload.items.length > 24) {
+    throw new TypeError("학습 항목이 너무 많습니다.");
+  }
 
+  const bodyText = postMarkdownText(input.bodyMarkdown);
   const seen = new Set<string>();
   const items: PostStudyItem[] = [];
-  for (const candidate of payload.items.slice(0, 24)) {
+  for (const candidate of payload.items) {
     const item = record(candidate);
-    if (!item || (item.kind !== "word" && item.kind !== "expression")) continue;
+    if (!item || (item.kind !== "word" && item.kind !== "expression")) {
+      throw new TypeError("학습 항목 종류가 올바르지 않습니다.");
+    }
     const text = trimString(item.text, MAX_STUDY_TEXT_LENGTH);
+    const canonicalText = trimString(item.canonicalText, MAX_STUDY_TEXT_LENGTH);
     const meaningKo = trimString(item.meaningKo, MAX_STUDY_FIELD_LENGTH);
     const noteKo = trimString(item.noteKo, MAX_STUDY_FIELD_LENGTH);
     const rawContext = trimString(item.context, MAX_STUDY_FIELD_LENGTH);
-    if (!text || !meaningKo || !noteKo || !rawContext) continue;
-    if (!appearsInBody(input.locale, input.bodyMarkdown, text)) continue;
-    const context = appearsInBody(input.locale, input.bodyMarkdown, rawContext)
+    if (!text || !canonicalText || !meaningKo || !noteKo || !rawContext) {
+      throw new TypeError("학습 항목 필드가 올바르지 않습니다.");
+    }
+    if (!appearsInBody(input.locale, bodyText, text)) {
+      throw new TypeError("학습 항목이 본문에 없습니다.");
+    }
+    const context = appearsInBody(input.locale, bodyText, rawContext)
       ? rawContext
       : text;
-    const itemKey = normalizePostStudyItemKey(input.locale, text);
+    const itemKey = normalizePostStudyItemKey(input.locale, canonicalText);
     if (seen.has(itemKey)) continue;
     seen.add(itemKey);
     const reading = trimString(item.reading, MAX_STUDY_TEXT_LENGTH);
+    if (input.locale === "en" && reading) {
+      throw new TypeError("영어 학습 항목에는 읽기를 넣지 않습니다.");
+    }
+    if (input.locale !== "en" && !reading) {
+      throw new TypeError("일본어·중국어 학습 항목에는 읽기가 필요합니다.");
+    }
     items.push({
       itemKey,
       kind: item.kind,
       text,
+      canonicalText,
       ...(reading ? { reading } : {}),
       meaningKo,
       noteKo,

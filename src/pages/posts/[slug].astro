@@ -13,6 +13,7 @@ import {
   type PostTranslationLocale,
 } from "../../lib/post-translation";
 import { postHref } from "../../lib/posts";
+import { postStudySourceHash } from "../../lib/post-study";
 import { getPostStudyPanel } from "../../lib/server/post-study";
 import {
   READER_LOCALE_COOKIE,
@@ -70,7 +71,11 @@ if (activeTranslationLocale && !translatedPost) {
 }
 const activePost = translatedPost ?? sourcePost;
 const studyPanel = session && activeTranslationLocale
-  ? await getPostStudyPanel(sourcePost.id, activeTranslationLocale)
+  ? await getPostStudyPanel(
+      sourcePost.id,
+      activeTranslationLocale,
+      postStudySourceHash(activePost.data.title, activePost.bodyMarkdown),
+    )
   : undefined;
 const visiblePosts = posts.map((post) =>
   post.id === sourcePost.id ? activePost : post,

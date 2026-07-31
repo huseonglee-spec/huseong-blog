@@ -1,16 +1,18 @@
 import type { APIRoute } from "astro";
 
 import { parsePostSlug } from "../../../../lib/edit-post";
+import { POST_TRANSLATION_PROMPT_VERSION } from "../../../../lib/post-translation-generation";
 import {
   parsePostTranslationInput,
   postTranslationHref,
-  type PublishablePostTranslation,
 } from "../../../../lib/post-translation";
-import { postStudySourceHash } from "../../../../lib/post-study";
 import { validCsrfToken } from "../../../../lib/server/auth";
 import { isAllowedOrigin } from "../../../../lib/server/auth-core";
 import { requestPostStudyGeneration } from "../../../../lib/server/post-study";
-import { publishPostTranslation } from "../../../../lib/server/publish-post-translation";
+import {
+  publishPostTranslation,
+  type PostTranslationDraftPublication,
+} from "../../../../lib/server/publish-post-translation";
 import {
   readBoundedFormData,
   RequestBodyTooLargeError,
@@ -29,17 +31,32 @@ function json(body: unknown, status: number): Response {
 
 async function requestStudyGeneration(
   slug: string,
-  translation: PublishablePostTranslation,
+  locale: ReturnType<typeof parsePostTranslationInput>["locale"],
 ): Promise<void> {
   try {
-    await requestPostStudyGeneration(
-      slug,
-      translation.locale,
-      postStudySourceHash(translation.title, translation.bodyMarkdown),
-    );
+    await requestPostStudyGeneration(slug, locale);
   } catch (error) {
     console.error("Failed to queue post study generation", error);
   }
+}
+
+function parseDraftPublication(form: FormData): PostTranslationDraftPublication | undefined {
+  const generationId = form.get("draftGenerationId");
+  const sourceHash = form.get("draftSourceHash");
+  const promptVersion = form.get("draftPromptVersion");
+  const absent = [generationId, sourceHash, promptVersion]
+    .every((value) => value === null || value === "");
+  if (absent) return undefined;
+  if (
+    typeof generationId !== "string" ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(generationId) ||
+    typeof sourceHash !== "string" ||
+    !/^[0-9a-f]{64}$/u.test(sourceHash) ||
+    promptVersion !== String(POST_TRANSLATION_PROMPT_VERSION)
+  ) {
+    throw new TypeError("번역 초안 버전이 올바르지 않습니다. 다시 생성해 주세요.");
+  }
+  return { generationId, sourceHash, promptVersion: POST_TRANSLATION_PROMPT_VERSION };
 }
 
 export const POST: APIRoute = async (context) => {
@@ -66,6 +83,7 @@ export const POST: APIRoute = async (context) => {
 
   let slug: string;
   let translation: ReturnType<typeof parsePostTranslationInput>;
+  let draft: PostTranslationDraftPublication | undefined;
   try {
     slug = parsePostSlug(context.params.slug);
     translation = parsePostTranslationInput({
@@ -73,6 +91,7 @@ export const POST: APIRoute = async (context) => {
       title: form.get("title"),
       bodyMarkdown: form.get("bodyMarkdown"),
     });
+    draft = parseDraftPublication(form);
   } catch (error) {
     return json(
       { error: error instanceof Error ? error.message : "입력값이 올바르지 않습니다." },
@@ -81,12 +100,15 @@ export const POST: APIRoute = async (context) => {
   }
 
   try {
-    const status = await publishPostTranslation(slug, translation);
+    const status = await publishPostTranslation(slug, translation, draft);
     if (status === "missing") return json({ error: "글을 찾을 수 없습니다." }, 404);
     if (status === "exists") {
       return json({ error: "이미 발행된 언어판입니다. 기존 언어판은 변경하지 않았습니다." }, 409);
     }
-    await requestStudyGeneration(slug, translation);
+    if (status === "stale") {
+      return json({ error: "원문이 바뀌었거나 초안이 오래되었습니다. 번역 초안을 다시 생성해 주세요." }, 409);
+    }
+    await requestStudyGeneration(slug, translation.locale);
     return json(
       { location: `${postTranslationHref(slug, translation.locale)}#post-${slug}` },
       201,
@@ -138,7 +160,6 @@ export const PATCH: APIRoute = async (context) => {
   try {
     const updated = await updatePostTranslation(slug, translation);
     if (!updated) return json({ error: "언어판을 찾을 수 없습니다." }, 404);
-    await requestStudyGeneration(slug, translation);
     return json(
       { location: `${postTranslationHref(slug, translation.locale)}#post-${slug}` },
       200,

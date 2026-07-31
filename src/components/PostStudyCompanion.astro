@@ -33,6 +33,7 @@ const languageLabel = translationLocaleLabel(locale);
   id="post-study-companion"
   class="post-study-companion"
   data-post-study-companion
+  data-post-study-slug={slug}
   data-mobile-open="true"
   role="complementary"
   aria-label={`${languageLabel} 단어와 표현`}
@@ -102,6 +103,7 @@ const languageLabel = translationLocaleLabel(locale);
     locale,
     csrfToken,
     generating,
+    sourceHash: panel.sourceHash,
   }).replaceAll("<", "\\u003c")} />
 </aside>
 
@@ -111,6 +113,7 @@ const languageLabel = translationLocaleLabel(locale);
     locale: string;
     csrfToken: string;
     generating: boolean;
+    sourceHash: string;
   }
 
   const companion = document.querySelector<HTMLElement>("[data-post-study-companion]");
@@ -127,12 +130,32 @@ const languageLabel = translationLocaleLabel(locale);
       companion.querySelectorAll<HTMLButtonElement>("[data-dismiss-study-item]"),
     );
 
-    const setMobileOpen = (open: boolean) => {
+    const mobileLayout = window.matchMedia("(max-width: 1080px)");
+    const closedStorageKey = `post-study-panel:${config.slug}:${config.locale}:closed`;
+    const setMobileOpen = (open: boolean, moveFocus = true) => {
+      if (!mobileLayout.matches) open = true;
       companion.dataset.mobileOpen = String(open);
       opener.setAttribute("aria-expanded", String(open));
+      companion.toggleAttribute("inert", !open);
+      if (open) companion.removeAttribute("aria-hidden");
+      else companion.setAttribute("aria-hidden", "true");
+      if (mobileLayout.matches) sessionStorage.setItem(closedStorageKey, open ? "0" : "1");
+      if (moveFocus) (open ? closeButton : opener)?.focus();
     };
     opener.addEventListener("click", () => setMobileOpen(true));
     closeButton?.addEventListener("click", () => setMobileOpen(false));
+    companion.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && mobileLayout.matches) {
+        event.preventDefault();
+        setMobileOpen(false);
+      }
+    });
+    const restorePanelState = () => {
+      const open = !mobileLayout.matches || sessionStorage.getItem(closedStorageKey) !== "1";
+      setMobileOpen(open, false);
+    };
+    restorePanelState();
+    mobileLayout.addEventListener("change", restorePanelState);
 
     dismissButtons.forEach((button) => {
       button.addEventListener("click", async () => {
@@ -188,10 +211,51 @@ const languageLabel = translationLocaleLabel(locale);
     });
 
     if (config.generating) {
-      window.setTimeout(() => {
+      const maxPolls = 20;
+      let pollCount = 0;
+      let pollTimer: number | undefined;
+      const schedulePoll = (delay?: number) => {
+        if (pollCount >= maxPolls) {
+          if (actionStatus) actionStatus.textContent = "생성이 계속되면 잠시 뒤 페이지를 새로 열어 확인해 줘.";
+          return;
+        }
+        window.clearTimeout(pollTimer);
+        const backoff = Math.min(5_000 * 2 ** Math.floor(pollCount / 4), 60_000);
+        pollTimer = window.setTimeout(pollStatus, delay ?? backoff);
+      };
+      const pollStatus = async () => {
         const editing = document.querySelector("[data-edit-post-translation-form]:not([hidden])");
-        if (!editing && document.visibilityState === "visible") window.location.reload();
-      }, 5_000);
+        if (editing || document.visibilityState !== "visible") {
+          schedulePoll(5_000);
+          return;
+        }
+        pollCount += 1;
+        try {
+          const query = new URLSearchParams({
+            locale: config.locale,
+            sourceHash: config.sourceHash,
+          });
+          const response = await fetch(
+            `/api/posts/${encodeURIComponent(config.slug)}/study/status/?${query}`,
+            { headers: { Accept: "application/json" } },
+          );
+          const result = await response.json() as { status?: string };
+          if (!response.ok) throw new Error("status_unavailable");
+          if (result.status !== "pending" && result.status !== "processing") {
+            window.location.reload();
+            return;
+          }
+        } catch {
+          // A later bounded poll can recover from a transient status request failure.
+        }
+        schedulePoll();
+      };
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState !== "visible") return;
+        if (pollCount >= maxPolls) pollCount = 0;
+        schedulePoll(0);
+      });
+      schedulePoll(5_000);
     }
   }
 </script>

@@ -1,9 +1,11 @@
-import { neon } from "@neondatabase/serverless";
+import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import { getSecret } from "astro:env/server";
 
-let cachedDatabase: ReturnType<typeof neon> | undefined;
+type Database = NeonQueryFunction<false, false>;
 
-export function database(): ReturnType<typeof neon> {
+let cachedDatabase: Database | undefined;
+
+export function database(): Database {
   if (cachedDatabase) return cachedDatabase;
   const url = getSecret("DATABASE_URL");
   if (!url) throw new Error("DATABASE_URL is not configured");

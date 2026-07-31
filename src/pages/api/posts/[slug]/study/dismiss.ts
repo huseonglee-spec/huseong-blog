@@ -34,21 +34,31 @@ export const POST: APIRoute = async (context) => {
     return json({ error: "보안 토큰이 올바르지 않습니다." }, 403);
   }
 
+  let slug: string;
+  let locale: ReturnType<typeof parsePostTranslationLocale>;
+  let itemKey: string;
   try {
-    const slug = parsePostSlug(context.params.slug);
-    const locale = parsePostTranslationLocale(form.get("locale"));
+    slug = parsePostSlug(context.params.slug);
+    locale = parsePostTranslationLocale(form.get("locale"));
     const itemKeyValue = form.get("itemKey");
     if (typeof itemKeyValue !== "string" || !itemKeyValue.trim() || itemKeyValue.length > 240) {
       throw new TypeError("숨길 학습 항목이 올바르지 않습니다.");
     }
-    const dismissed = await dismissPostStudyItem(slug, locale, itemKeyValue.trim());
+    itemKey = itemKeyValue.trim();
+  } catch (error) {
+    return json(
+      { error: error instanceof Error ? error.message : "입력값이 올바르지 않습니다." },
+      400,
+    );
+  }
+
+  try {
+    const dismissed = await dismissPostStudyItem(slug, locale, itemKey);
     if (!dismissed) return json({ error: "학습 항목을 찾을 수 없습니다." }, 404);
     return json({ dismissed: true }, 200);
   } catch (error) {
-    return json(
-      { error: error instanceof Error ? error.message : "학습 항목을 숨기지 못했습니다." },
-      400,
-    );
+    console.error("Failed to dismiss post study item", error);
+    return json({ error: "학습 항목을 숨기지 못했습니다." }, 500);
   }
 };
 

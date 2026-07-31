@@ -14,6 +14,7 @@ describe("EditPostForm", () => {
     expect(source).toContain("{post.bodyMarkdown}</textarea>");
     expect(source).toContain('method: "PATCH"');
     expect(source).toContain("`/api/posts/${encodeURIComponent(post.id)}/`");
-    expect(source).toContain("window.location.reload()");
+    expect(source).toContain("initializeInlineForms");
+    expect(source).toContain('navigation: "smart"');
   });
 });

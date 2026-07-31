@@ -34,17 +34,25 @@ export const POST: APIRoute = async (context) => {
     return json({ error: "보안 토큰이 올바르지 않습니다." }, 403);
   }
 
+  let slug: string;
+  let locale: ReturnType<typeof parsePostTranslationLocale>;
   try {
-    const slug = parsePostSlug(context.params.slug);
-    const locale = parsePostTranslationLocale(form.get("locale"));
+    slug = parsePostSlug(context.params.slug);
+    locale = parsePostTranslationLocale(form.get("locale"));
+  } catch (error) {
+    return json(
+      { error: error instanceof Error ? error.message : "입력값이 올바르지 않습니다." },
+      400,
+    );
+  }
+
+  try {
     const status = await requestPostStudyGeneration(slug, locale);
     if (status === "missing") return json({ error: "언어판을 찾을 수 없습니다." }, 404);
     return json({ status }, status === "queued" ? 202 : 200);
   } catch (error) {
-    return json(
-      { error: error instanceof Error ? error.message : "생성을 요청하지 못했습니다." },
-      400,
-    );
+    console.error("Failed to queue post study generation", error);
+    return json({ error: "생성을 요청하지 못했습니다." }, 500);
   }
 };
 

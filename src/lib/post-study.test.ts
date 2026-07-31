@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPostStudyPrompt,
   normalizePostStudyItemKey,
+  parsePostStudyMaxJobs,
   parseGeneratedPostStudyItems,
   postStudySourceHash,
 } from "./post-study";
@@ -55,27 +56,28 @@ describe("언어판 학습 항목", () => {
     expect(japanese).toContain("히라가나");
     expect(chinese).toContain("완전 초급");
     expect(chinese).toContain("병음");
+    expect(english).toContain("canonicalText");
   });
 
-  it("모델 JSON을 검증하고 본문에 실제 있는 항목만 중복 없이 받는다", () => {
+  it("표면형은 본문에서 확인하고 표제어가 같은 활용형은 한 항목으로 합친다", () => {
     const raw = `\n\`\`\`json\n{"items":[
-      {"kind":"expression","text":"in and of itself","reading":null,"meaningKo":"그 자체로","noteKo":"결과와 무관한 자체 가치를 강조한다.","context":"not quoted from article"},
-      {"kind":"expression","text":"In and of itself!","meaningKo":"그 자체로","noteKo":"중복","context":"in and of itself"},
-      {"kind":"word","text":"hallucinated","meaningKo":"환각한","noteKo":"본문에 없음","context":"없음"}
+      {"kind":"expression","text":"took off","canonicalText":"take off","reading":null,"meaningKo":"도약했다","noteKo":"빠르게 성장했다는 뜻이다.","context":"The project took off"},
+      {"kind":"expression","text":"took off","canonicalText":"Take off!","reading":null,"meaningKo":"도약했다","noteKo":"중복","context":"took off"}
     ]}\n\`\`\``;
 
     expect(
       parseGeneratedPostStudyItems({
         locale: "en",
-        bodyMarkdown: "Writing is valuable in and of itself.",
+        bodyMarkdown: "The project took off quickly.",
         raw,
       }),
     ).toEqual([
       expect.objectContaining({
         kind: "expression",
-        text: "in and of itself",
-        context: "in and of itself",
-        itemKey: normalizePostStudyItemKey("en", "in and of itself"),
+        text: "took off",
+        canonicalText: "take off",
+        context: "The project took off",
+        itemKey: normalizePostStudyItemKey("en", "take off"),
       }),
     ]);
   });
@@ -86,21 +88,48 @@ describe("언어판 학습 항목", () => {
     );
   });
 
-  it("영어 단어는 다른 긴 단어의 일부만 일치하면 버린다", () => {
+  it("본문에 없는 항목이나 Markdown 링크 URL만 맞는 항목은 출력을 거부한다", () => {
     const raw = JSON.stringify({
       items: [{
         kind: "word",
         text: "art",
+        canonicalText: "art",
+        reading: null,
         meaningKo: "예술",
         noteKo: "본문에 독립 단어로는 없다.",
         context: "article",
       }],
     });
 
-    expect(parseGeneratedPostStudyItems({
+    expect(() => parseGeneratedPostStudyItems({
       locale: "en",
-      bodyMarkdown: "An article appears here.",
+      bodyMarkdown: "An article appears here with [a link](https://example.com/art).",
       raw,
-    })).toEqual([]);
+    })).toThrow("본문에 없습니다");
+  });
+
+  it("일본어·중국어 읽기는 필수이고 영어 읽기는 금지한다", () => {
+    const japanese = JSON.stringify({ items: [{
+      kind: "word",
+      text: "書く",
+      canonicalText: "書く",
+      reading: null,
+      meaningKo: "쓰다",
+      noteKo: "글을 쓴다는 뜻이다.",
+      context: "書く",
+    }] });
+    expect(() => parseGeneratedPostStudyItems({
+      locale: "ja",
+      bodyMarkdown: "書く。",
+      raw: japanese,
+    })).toThrow("읽기가 필요합니다");
+  });
+
+  it("worker 작업 수 환경값은 1~10 정수만 허용한다", () => {
+    expect(parsePostStudyMaxJobs(undefined)).toBe(3);
+    expect(parsePostStudyMaxJobs("10")).toBe(10);
+    expect(() => parsePostStudyMaxJobs("nope")).toThrow("must be an integer");
+    expect(() => parsePostStudyMaxJobs("1.5")).toThrow("must be an integer");
+    expect(() => parsePostStudyMaxJobs("11")).toThrow("between 1 and 10");
   });
 });

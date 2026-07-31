@@ -1,0 +1,12 @@
+[Unit]
+Description=Poll huseong.com translation draft generation jobs
+
+[Timer]
+OnBootSec=30s
+OnUnitInactiveSec=30s
+AccuracySec=5s
+Persistent=true
+Unit=huseong-blog-translation-worker.service
+
+[Install]
+WantedBy=timers.target

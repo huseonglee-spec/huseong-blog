@@ -4,6 +4,7 @@ import { postHref, type BlogPost } from "../lib/posts";
 import { renderPostMarkdown } from "../lib/markdown";
 import type { PostStudyPanelView } from "../lib/post-study";
 import {
+  POST_TRANSLATION_LOCALES,
   postTranslationHref,
   type PostTranslationLocale,
 } from "../lib/post-translation";
@@ -110,6 +111,10 @@ const renderedReaderLocale = (post: BlogPost): ReaderLocale =>
     : "ko";
 const isReaderLocaleAvailable = (post: BlogPost, locale: ReaderLocale): boolean =>
   locale === "ko" || (availableTranslationLocalesByPost[post.id] ?? []).includes(locale);
+const hasMissingTranslationLocale = (post: BlogPost): boolean =>
+  POST_TRANSLATION_LOCALES.some(
+    (locale) => !(availableTranslationLocalesByPost[post.id] ?? []).includes(locale),
+  );
 const READER_LOCALE_FLAGS: Record<ReaderLocale, string> = {
   ko: "🇰🇷",
   en: "🇺🇸",
@@ -312,7 +317,7 @@ const readerPostHref = (post: BlogPost) =>
                           )
                         ) : (
                           <>
-                            {translationCsrfToken && (
+                            {translationCsrfToken && hasMissingTranslationLocale(post) && (
                               <button
                                 type="button"
                                 data-add-translation
@@ -376,8 +381,12 @@ const readerPostHref = (post: BlogPost) =>
                   <div class="post-content post-body" set:html={html} />
                 </div>
               </div>
-              {translationCsrfToken && (
-                <PostTranslationForm post={post} csrfToken={translationCsrfToken} />
+              {translationCsrfToken && hasMissingTranslationLocale(post) && (
+                <PostTranslationForm
+                  post={post}
+                  csrfToken={translationCsrfToken}
+                  publishedLocales={availableTranslationLocalesByPost[post.id] ?? []}
+                />
               )}
               {editCsrfToken && <EditPostForm post={post} csrfToken={editCsrfToken} />}
               {translationEditCsrfToken && activeTranslationLocale && post.id === initialSlug && (
@@ -465,6 +474,8 @@ const readerPostHref = (post: BlogPost) =>
     const filteredTotal = root.querySelector<HTMLElement>("[data-filtered-total]");
     const currentTitle = root.querySelector<HTMLElement>("[data-current-title]");
     const progress = root.querySelector<HTMLElement>("[data-progress]");
+    const studyCompanion = document.querySelector<HTMLElement>("[data-post-study-companion]");
+    const studyPanelSlug = studyCompanion?.dataset.postStudySlug;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let visibleIndexes = posts.map((_, index) => index);
     let activePosition = Number(root.dataset.initialPostIndex ?? "0");
@@ -494,6 +505,15 @@ const readerPostHref = (post: BlogPost) =>
       const clamped = Math.max(0, Math.min(nextPosition, visibleIndexes.length - 1));
       const postIndex = visibleIndexes[clamped] ?? 0;
       const nextPost = posts[postIndex];
+      if (
+        updateUrl &&
+        studyPanelSlug &&
+        nextPost?.dataset.post !== studyPanelSlug &&
+        nextPost?.dataset.postHref
+      ) {
+        window.location.assign(nextPost.dataset.postHref);
+        return;
+      }
       if (
         updateUrl &&
         nextPost?.dataset.postHref &&
@@ -564,6 +584,7 @@ const readerPostHref = (post: BlogPost) =>
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         const postIndex = Number(link.dataset.postIndexButton);
         const targetPost = posts[postIndex];
+        if (studyPanelSlug && targetPost?.dataset.post !== studyPanelSlug) return;
         if (localeFromHref(link.href) !== (targetPost?.dataset.renderedLanguage ?? "ko")) return;
         event.preventDefault();
         const position = visibleIndexes.indexOf(postIndex);
@@ -603,6 +624,10 @@ const readerPostHref = (post: BlogPost) =>
         ? posts.findIndex((post) => post.dataset.post === matchedSlug)
         : 0;
       if (postIndex < 0) return;
+      if (studyPanelSlug && matchedSlug !== studyPanelSlug) {
+        window.location.reload();
+        return;
+      }
       const currentLanguage = new URL(window.location.href).searchParams.get("lang") ?? "ko";
       const renderedLanguage = posts[postIndex]?.dataset.renderedLanguage ?? "ko";
       if (currentLanguage !== renderedLanguage) {
@@ -620,7 +645,7 @@ const readerPostHref = (post: BlogPost) =>
 
     document.addEventListener("keydown", (event) => {
       const target = event.target as HTMLElement | null;
-      if (target?.matches("input, textarea, select, [contenteditable='true']")) return;
+      if (target?.closest("[data-post-study-companion], a, button, input, textarea, select, [contenteditable='true']")) return;
       if (event.key === "ArrowLeft") {
         event.preventDefault();
         showPosition(activePosition - 1);
