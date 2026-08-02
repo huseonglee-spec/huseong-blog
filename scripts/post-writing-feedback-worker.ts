@@ -6,17 +6,18 @@ import { promisify } from "node:util";
 import { neon } from "@neondatabase/serverless";
 
 import {
-  buildPostTranslationPrompt,
-  parseGeneratedPostTranslation,
-  parsePostTranslationMaxJobs,
-  POST_TRANSLATION_MAX_TRANSIENT_ATTEMPTS,
-  POST_TRANSLATION_PROMPT_VERSION,
-  postTranslationRetryDecision,
-  postTranslationSourceHash,
-  type GeneratedPostTranslation,
-  type PostTranslationFailureCode,
-} from "../src/lib/post-translation-generation";
-import type { PostTranslationLocale } from "../src/lib/post-translation";
+  buildPostWritingFeedbackPrompt,
+  parseGeneratedPostWritingFeedback,
+  parsePostWritingFeedbackMaxJobs,
+  POST_WRITING_FEEDBACK_MAX_TRANSIENT_ATTEMPTS,
+  POST_WRITING_FEEDBACK_PROMPT_VERSION,
+  postWritingFeedbackItemKey,
+  postWritingFeedbackRetryDecision,
+  postWritingFeedbackSourceHash,
+  type GeneratedPostWritingFeedback,
+  type PostWritingFeedbackFailureCode,
+  type PostWritingFeedbackLocale,
+} from "../src/lib/post-writing-feedback";
 import {
   generateWithHermesOAuth,
   HermesOAuthInvocationError,
@@ -33,29 +34,29 @@ if (!databaseUrl) throw new Error("DATABASE_URL is not configured");
 
 const sql = neon(databaseUrl);
 const execFileAsync = promisify(execFile);
-const configuredHermesProvider = process.env.HUSEONG_BLOG_TRANSLATION_HERMES_PROVIDER ?? "openai-codex";
-if (configuredHermesProvider !== "openai-codex") {
-  throw new Error("Translation worker requires the openai-codex OAuth provider");
+const configuredProvider = process.env.HUSEONG_BLOG_FEEDBACK_HERMES_PROVIDER ?? "openai-codex";
+if (configuredProvider !== "openai-codex") {
+  throw new Error("Writing feedback worker requires the openai-codex OAuth provider");
 }
 const hermesInvocation = {
-  bridgePythonBin: process.env.HUSEONG_BLOG_TRANSLATION_HERMES_PYTHON ??
+  bridgePythonBin: process.env.HUSEONG_BLOG_FEEDBACK_HERMES_PYTHON ??
     "/home/huseong/.hermes/hermes-agent/venv/bin/python3",
-  bridgeScriptPath: process.env.HUSEONG_BLOG_TRANSLATION_HERMES_BRIDGE ??
+  bridgeScriptPath: process.env.HUSEONG_BLOG_FEEDBACK_HERMES_BRIDGE ??
     fileURLToPath(new URL("./hermes-oauth-stdin-bridge.py", import.meta.url)),
-  hermesBin: process.env.HUSEONG_BLOG_TRANSLATION_HERMES_BIN ?? "/home/huseong/.local/bin/hermes",
-  profile: process.env.HUSEONG_BLOG_TRANSLATION_HERMES_PROFILE ?? "linux-coder",
+  hermesBin: process.env.HUSEONG_BLOG_FEEDBACK_HERMES_BIN ?? "/home/huseong/.local/bin/hermes",
+  profile: process.env.HUSEONG_BLOG_FEEDBACK_HERMES_PROFILE ?? "linux-coder",
   provider: "openai-codex" as const,
-  model: process.env.HUSEONG_BLOG_TRANSLATION_HERMES_MODEL ?? "gpt-5.6-sol",
+  model: process.env.HUSEONG_BLOG_FEEDBACK_HERMES_MODEL ?? "gpt-5.6-sol",
   timeoutMs: 240_000,
 };
-const maxJobs = parsePostTranslationMaxJobs(
-  process.env.HUSEONG_BLOG_TRANSLATION_MAX_JOBS,
+const maxJobs = parsePostWritingFeedbackMaxJobs(
+  process.env.HUSEONG_BLOG_FEEDBACK_MAX_JOBS,
 );
 
 interface ClaimedGenerationRow {
   id: string;
   post_slug: string;
-  locale: PostTranslationLocale;
+  locale: PostWritingFeedbackLocale;
   source_title: string;
   source_body_markdown: string;
   source_hash: string;
@@ -63,14 +64,8 @@ interface ClaimedGenerationRow {
   attempts: number;
 }
 
-interface CurrentSourceRow {
-  title: string;
-  body_markdown: string;
-  published: boolean;
-}
-
 async function assertCleanCheckout(): Promise<void> {
-  if (process.env.HUSEONG_BLOG_TRANSLATION_ALLOW_DIRTY === "1") return;
+  if (process.env.HUSEONG_BLOG_FEEDBACK_ALLOW_DIRTY === "1") return;
   const result = await execFileAsync(
     "git",
     ["status", "--porcelain", "--untracked-files=normal"],
@@ -78,18 +73,18 @@ async function assertCleanCheckout(): Promise<void> {
   );
   if (result.stdout.trim()) {
     throw new Error(
-      "Translation worker refuses a dirty Git checkout. Commit or stash changes before starting it.",
+      "Writing feedback worker refuses a dirty Git checkout. Deploy an exact clean revision first.",
     );
   }
 }
 
 async function supersedeOldPromptVersions(): Promise<number> {
   const rows = await sql`
-    UPDATE post_translation_generations
+    UPDATE post_writing_feedback_generations
        SET status = 'superseded',
            completed_at = now(),
            last_error = NULL
-     WHERE prompt_version <> ${POST_TRANSLATION_PROMPT_VERSION}
+     WHERE prompt_version <> ${POST_WRITING_FEEDBACK_PROMPT_VERSION}
        AND status IN ('pending', 'processing', 'ready')
     RETURNING id
   `;
@@ -101,10 +96,16 @@ async function recoverStaleProcessingGenerations(): Promise<{
   terminalFailures: number;
 }> {
   const rows = await sql`
-    UPDATE post_translation_generations
-       SET status = CASE WHEN attempts < ${POST_TRANSLATION_MAX_TRANSIENT_ATTEMPTS} THEN 'pending' ELSE 'failed' END,
+    UPDATE post_writing_feedback_generations
+       SET status = CASE
+             WHEN attempts < ${POST_WRITING_FEEDBACK_MAX_TRANSIENT_ATTEMPTS} THEN 'pending'
+             ELSE 'failed'
+           END,
            available_at = now(),
-           completed_at = CASE WHEN attempts < ${POST_TRANSLATION_MAX_TRANSIENT_ATTEMPTS} THEN NULL ELSE now() END,
+           completed_at = CASE
+             WHEN attempts < ${POST_WRITING_FEEDBACK_MAX_TRANSIENT_ATTEMPTS} THEN NULL
+             ELSE now()
+           END,
            last_error = 'worker_interrupted'
      WHERE status = 'processing'
        AND started_at < now() - interval '10 minutes'
@@ -121,15 +122,15 @@ async function claimGeneration(): Promise<ClaimedGenerationRow | undefined> {
   const rows = await sql`
     WITH candidate AS (
       SELECT id
-        FROM post_translation_generations
+        FROM post_writing_feedback_generations
        WHERE status = 'pending'
          AND available_at <= now()
-         AND prompt_version = ${POST_TRANSLATION_PROMPT_VERSION}
+         AND prompt_version = ${POST_WRITING_FEEDBACK_PROMPT_VERSION}
        ORDER BY requested_at ASC, id ASC
        FOR UPDATE SKIP LOCKED
        LIMIT 1
     )
-    UPDATE post_translation_generations AS generation
+    UPDATE post_writing_feedback_generations AS generation
        SET status = 'processing',
            attempts = generation.attempts + 1,
            started_at = now(),
@@ -144,25 +145,9 @@ async function claimGeneration(): Promise<ClaimedGenerationRow | undefined> {
   return (rows as ClaimedGenerationRow[])[0];
 }
 
-async function currentSource(job: ClaimedGenerationRow): Promise<CurrentSourceRow | undefined> {
-  const rows = await sql`
-    SELECT post.title, post.body_markdown,
-           EXISTS (
-             SELECT 1
-               FROM post_translations
-              WHERE post_slug = post.slug
-                AND locale = ${job.locale}
-           ) AS published
-      FROM posts AS post
-     WHERE post.slug = ${job.post_slug}
-     LIMIT 1
-  `;
-  return (rows as CurrentSourceRow[])[0];
-}
-
 async function supersedeGeneration(job: ClaimedGenerationRow): Promise<void> {
   await sql`
-    UPDATE post_translation_generations
+    UPDATE post_writing_feedback_generations
        SET status = 'superseded',
            completed_at = now(),
            last_error = NULL
@@ -174,51 +159,58 @@ async function supersedeGeneration(job: ClaimedGenerationRow): Promise<void> {
 
 async function completeGeneration(
   job: ClaimedGenerationRow,
-  generated: GeneratedPostTranslation,
+  generated: GeneratedPostWritingFeedback,
 ): Promise<boolean> {
-  const payload = JSON.stringify(generated.tradeoffs);
+  const payload = JSON.stringify(generated.items.map((item, sortOrder) => ({
+    itemKey: postWritingFeedbackItemKey(item.feedback, item.reason),
+    sortOrder,
+    feedback: item.feedback,
+    reason: item.reason,
+  })));
   const rows = await sql`
-    WITH current_source AS MATERIALIZED (
-      SELECT slug
-        FROM posts
-       WHERE slug = ${job.post_slug}
-         AND title = ${job.source_title}
-         AND body_markdown = ${job.source_body_markdown}
+    WITH valid_job AS MATERIALIZED (
+      SELECT id
+        FROM post_writing_feedback_generations
+       WHERE id = ${job.id}
+         AND status = 'processing'
+         AND attempts = ${job.attempts}
+         AND source_hash = ${job.source_hash}
+         AND prompt_version = ${job.prompt_version}
        FOR UPDATE
-    ), valid_job AS MATERIALIZED (
-      SELECT generation.id
-        FROM post_translation_generations AS generation
-        CROSS JOIN current_source
-       WHERE generation.id = ${job.id}
-         AND generation.status = 'processing'
-         AND generation.attempts = ${job.attempts}
-         AND generation.locale = ${job.locale}
-         AND generation.source_hash = ${job.source_hash}
-         AND generation.prompt_version = ${job.prompt_version}
-         AND NOT EXISTS (
-           SELECT 1
-             FROM post_translations
-            WHERE post_slug = ${job.post_slug}
-              AND locale = ${job.locale}
-         )
-       FOR UPDATE OF generation
+    ), input_items AS (
+      SELECT *
+        FROM jsonb_to_recordset(${payload}::jsonb) AS item(
+          "itemKey" text,
+          "sortOrder" integer,
+          feedback text,
+          reason text
+        )
+    ), inserted AS (
+      INSERT INTO post_writing_feedback_items (
+        generation_id, item_key, sort_order, feedback, reason
+      )
+      SELECT ${job.id}, item."itemKey", item."sortOrder", item.feedback, item.reason
+        FROM input_items AS item
+        CROSS JOIN valid_job
+      ON CONFLICT (generation_id, item_key) DO UPDATE SET
+        sort_order = EXCLUDED.sort_order,
+        feedback = EXCLUDED.feedback,
+        reason = EXCLUDED.reason
+      RETURNING item_key
+    ), completed AS (
+      UPDATE post_writing_feedback_generations
+         SET status = 'ready',
+             completed_at = now(),
+             last_error = NULL
+       WHERE id IN (SELECT id FROM valid_job)
+      RETURNING id
     )
-    UPDATE post_translation_generations
-       SET status = 'ready',
-           draft_title = ${generated.title},
-           draft_body_markdown = ${generated.bodyMarkdown},
-           tradeoffs = ${payload}::jsonb,
-           completed_at = now(),
-           last_error = NULL
-     WHERE id IN (SELECT id FROM valid_job)
-    RETURNING id
+    SELECT EXISTS (SELECT 1 FROM completed) AS completed
   `;
-  return Boolean((rows as { id: string }[])[0]?.id);
+  return Boolean((rows as { completed: boolean }[])[0]?.completed);
 }
 
-function failureCode(
-  error: unknown,
-): PostTranslationFailureCode {
+function failureCode(error: unknown): PostWritingFeedbackFailureCode {
   if (error instanceof HermesOAuthInvocationError) return error.reason;
   if (error instanceof SyntaxError || error instanceof TypeError) return "model_output_invalid";
   return "model_unavailable";
@@ -229,9 +221,9 @@ async function failGeneration(
   error: unknown,
 ): Promise<boolean | undefined> {
   const code = failureCode(error);
-  const { retry, delaySeconds } = postTranslationRetryDecision(code, job.attempts);
+  const { retry, delaySeconds } = postWritingFeedbackRetryDecision(code, job.attempts);
   const rows = await sql`
-    UPDATE post_translation_generations
+    UPDATE post_writing_feedback_generations
        SET status = ${retry ? "pending" : "failed"},
            available_at = CASE
              WHEN ${retry} THEN now() + (${delaySeconds} * interval '1 second')
@@ -252,26 +244,22 @@ async function failGeneration(
 async function processGeneration(
   job: ClaimedGenerationRow,
 ): Promise<"ready" | "retrying" | "failed" | "superseded"> {
-  const source = await currentSource(job);
   if (
-    !source ||
-    source.published ||
-    source.title !== job.source_title ||
-    source.body_markdown !== job.source_body_markdown ||
-    postTranslationSourceHash(job.source_title, job.source_body_markdown) !== job.source_hash
+    postWritingFeedbackSourceHash(job.source_title, job.source_body_markdown) !== job.source_hash ||
+    job.prompt_version !== POST_WRITING_FEEDBACK_PROMPT_VERSION
   ) {
     await supersedeGeneration(job);
     return "superseded";
   }
 
   try {
-    const prompt = buildPostTranslationPrompt({
+    const prompt = buildPostWritingFeedbackPrompt({
       locale: job.locale,
       title: job.source_title,
       bodyMarkdown: job.source_body_markdown,
     });
     const raw = await generateWithHermesOAuth(prompt, hermesInvocation);
-    const generated = parseGeneratedPostTranslation({
+    const generated = parseGeneratedPostWritingFeedback({
       locale: job.locale,
       title: job.source_title,
       bodyMarkdown: job.source_body_markdown,

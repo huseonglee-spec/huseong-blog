@@ -7,11 +7,15 @@ import argparse
 import contextlib
 import io
 import re
+import sqlite3
 import sys
+from pathlib import Path
 
 MAX_PROMPT_BYTES = 3 * 1024 * 1024
 PROFILE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+SOURCE_PATTERN = re.compile(r"^huseong-blog-oauth-[0-9a-f-]{4,64}$")
 SESSION_ID_PATTERN = re.compile(r"^session_id:\s*([A-Za-z0-9_-]{1,128})$")
+SESSION_ID_VALUE_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 
 
 class SessionStderr(io.TextIOBase):
@@ -42,12 +46,35 @@ class SessionStderr(io.TextIOBase):
 def parse_bridge_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--profile", required=True)
-    parser.add_argument("--provider", required=True, choices=("openai-codex",))
-    parser.add_argument("--model", required=True)
+    parser.add_argument("--provider", choices=("openai-codex",))
+    parser.add_argument("--model")
+    parser.add_argument("--source", required=True)
+    parser.add_argument("--list-source-sessions", action="store_true")
     args = parser.parse_args()
     if not PROFILE_PATTERN.fullmatch(args.profile):
         parser.error("invalid profile")
+    if not SOURCE_PATTERN.fullmatch(args.source):
+        parser.error("invalid source")
+    if not args.list_source_sessions and (not args.provider or not args.model):
+        parser.error("provider and model are required")
     return args
+
+
+def list_source_sessions(profile: str, source: str) -> None:
+    database_path = Path.home() / ".hermes" / "profiles" / profile / "state.db"
+    if not database_path.is_file():
+        return
+    connection = sqlite3.connect(f"file:{database_path}?mode=ro", uri=True, timeout=5)
+    try:
+        rows = connection.execute(
+            "SELECT id FROM sessions WHERE source = ? ORDER BY id ASC",
+            (source,),
+        )
+        for (session_id,) in rows:
+            if isinstance(session_id, str) and SESSION_ID_VALUE_PATTERN.fullmatch(session_id):
+                print(f"session_id:{session_id}")
+    finally:
+        connection.close()
 
 
 def read_prompt() -> str:
@@ -64,6 +91,9 @@ def read_prompt() -> str:
 
 def main() -> None:
     args = parse_bridge_args()
+    if args.list_source_sessions:
+        list_source_sessions(args.profile, args.source)
+        return
     prompt = read_prompt()
     sys.argv = [
         "hermes",
@@ -75,7 +105,7 @@ def main() -> None:
         "-t",
         "todo",
         "--source",
-        "tool",
+        args.source,
         "--max-turns",
         "2",
         "--pass-session-id",

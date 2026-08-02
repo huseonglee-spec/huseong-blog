@@ -1,6 +1,7 @@
 ---
 import type { PostTranslationLocale } from "../lib/post-translation";
 import type { BlogPost } from "../lib/posts";
+import PostWritingFeedback from "./PostWritingFeedback.astro";
 
 interface Props {
   post: BlogPost;
@@ -42,6 +43,8 @@ const endpoint = `/api/posts/${encodeURIComponent(post.id)}/translations/`;
     maxlength="170000"
     required
   >{post.bodyMarkdown}</textarea>
+
+  <PostWritingFeedback slug={post.id} locale={locale} csrfToken={csrfToken} />
 
   <footer class="edit-translation-footer">
     <p data-edit-translation-status aria-live="polite"></p>

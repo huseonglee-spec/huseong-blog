@@ -21,6 +21,7 @@ describe("administrator authentication helpers", () => {
     expect(adminRouteKind("/api/posts/example/")).toBe("api");
     expect(adminRouteKind("/api/posts/example/translations/")).toBe("api");
     expect(adminRouteKind("/api/posts/example/translation-draft/")).toBe("api");
+    expect(adminRouteKind("/api/posts/example/writing-feedback/")).toBe("api");
     expect(adminRouteKind("/api/posts/example/study/generate/")).toBe("api");
     expect(adminRouteKind("/api/posts/example/study/dismiss/")).toBe("api");
     expect(adminRouteKind("/api/posts/example/study/status/")).toBe("api");
@@ -38,6 +39,7 @@ describe("administrator authentication helpers", () => {
     expect(needsAdminSession("/")).toBe(true);
     expect(needsAdminSession("/posts/example/")).toBe(true);
     expect(needsAdminSession("/api/posts/example/")).toBe(true);
+    expect(needsAdminSession("/api/posts/example/writing-feedback/")).toBe(true);
     expect(needsAdminSession("/sitemap.xml")).toBe(false);
   });
 

@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 
 export const HERMES_OAUTH_MAX_PROMPT_BYTES = 3 * 1024 * 1024;
 
@@ -120,17 +121,45 @@ export class HermesOAuthInvocationError extends Error {
   }
 }
 
+const HERMES_OAUTH_ENVIRONMENT_ALLOWLIST = new Set([
+  "HOME",
+  "PATH",
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "TZ",
+  "TMPDIR",
+  "PYTHONPATH",
+  "PYTHONUTF8",
+  "PYTHONIOENCODING",
+  "SSL_CERT_FILE",
+  "SSL_CERT_DIR",
+  "REQUESTS_CA_BUNDLE",
+  "CURL_CA_BUNDLE",
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "ALL_PROXY",
+  "NO_PROXY",
+  "XDG_CONFIG_HOME",
+  "XDG_CACHE_HOME",
+  "XDG_DATA_HOME",
+  "XDG_STATE_HOME",
+]);
+
 export function sanitizedHermesEnvironment(
   environment: Readonly<Record<string, string | undefined>>,
 ): Record<string, string> {
   return Object.fromEntries(
     Object.entries(environment)
-      .filter(([key, value]) => key.toUpperCase() !== "OPENAI_API_KEY" && value !== undefined)
+      .filter(([key, value]) => HERMES_OAUTH_ENVIRONMENT_ALLOWLIST.has(key) && value !== undefined)
       .map(([key, value]) => [key, value!]),
   );
 }
 
-export function hermesOAuthBridgeArgs(invocation: HermesOAuthInvocation): string[] {
+export function hermesOAuthBridgeArgs(
+  invocation: HermesOAuthInvocation,
+  source: string,
+): string[] {
   return [
     invocation.bridgeScriptPath,
     "--profile",
@@ -139,6 +168,8 @@ export function hermesOAuthBridgeArgs(invocation: HermesOAuthInvocation): string
     invocation.provider,
     "--model",
     invocation.model,
+    "--source",
+    source,
   ];
 }
 
@@ -146,6 +177,13 @@ export function hermesSessionId(stdout: string): string | undefined {
   const line = stdout.split(/\r?\n/u)
     .find((candidate) => candidate.startsWith("session_id:"));
   return line?.slice("session_id:".length).trim() || undefined;
+}
+
+function hermesSessionIds(stdout: string): string[] {
+  return [...new Set(stdout.split(/\r?\n/u)
+    .filter((line) => line.startsWith("session_id:"))
+    .map((line) => line.slice("session_id:".length).trim())
+    .filter((sessionId) => /^[A-Za-z0-9_-]{1,128}$/u.test(sessionId)))];
 }
 
 export function parseHermesOAuthOutput(stdout: string): {
@@ -162,12 +200,6 @@ export function parseHermesOAuthOutput(stdout: string): {
   return { ...(sessionId ? { sessionId } : {}), content };
 }
 
-function errorStdout(error: unknown): string {
-  return typeof error === "object" && error !== null && "stdout" in error
-    ? String(error.stdout ?? "")
-    : "";
-}
-
 function invocationFailure(error: unknown): HermesOAuthInvocationError {
   const timeout = typeof error === "object" && error !== null &&
     (("killed" in error && error.killed === true) ||
@@ -175,26 +207,59 @@ function invocationFailure(error: unknown): HermesOAuthInvocationError {
   return new HermesOAuthInvocationError(timeout ? "model_timeout" : "model_unavailable");
 }
 
-async function deleteHermesSession(
+async function listHermesSourceSessions(
   invocation: HermesOAuthInvocation,
-  sessionId: string | undefined,
+  source: string,
+  environment: Record<string, string>,
+  run: HermesOAuthExec,
+): Promise<string[]> {
+  const result = await run(
+    invocation.bridgePythonBin,
+    [
+      invocation.bridgeScriptPath,
+      "--profile",
+      invocation.profile,
+      "--source",
+      source,
+      "--list-source-sessions",
+    ],
+    {
+      timeout: 30_000,
+      maxBuffer: 256 * 1024,
+      env: environment,
+    },
+  );
+  return hermesSessionIds(String(result.stdout));
+}
+
+async function deleteHermesSourceSessions(
+  invocation: HermesOAuthInvocation,
+  source: string,
   environment: Record<string, string>,
   run: HermesOAuthExec,
 ): Promise<void> {
-  if (!sessionId) return;
-  try {
-    await run(
-      invocation.hermesBin,
-      ["--profile", invocation.profile, "sessions", "delete", "--yes", sessionId],
-      {
-        timeout: 30_000,
-        maxBuffer: 256 * 1024,
-        env: environment,
-      },
-    );
-  } catch {
-    // Tool-tagged sessions remain hidden if bounded cleanup is temporarily unavailable.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const sessionIds = await listHermesSourceSessions(invocation, source, environment, run);
+      if (sessionIds.length === 0) return;
+      for (const sessionId of sessionIds) {
+        await run(
+          invocation.hermesBin,
+          ["--profile", invocation.profile, "sessions", "delete", "--yes", sessionId],
+          {
+            timeout: 30_000,
+            maxBuffer: 256 * 1024,
+            env: environment,
+          },
+        );
+      }
+      const remaining = await listHermesSourceSessions(invocation, source, environment, run);
+      if (remaining.length === 0) return;
+    } catch {
+      // Retry the same unique source without logging draft-bearing process output.
+    }
   }
+  throw new HermesOAuthInvocationError("model_unavailable");
 }
 
 export async function generateWithHermesOAuth(
@@ -207,13 +272,13 @@ export async function generateWithHermesOAuth(
     throw new HermesOAuthInvocationError("model_unavailable");
   }
   const environment = sanitizedHermesEnvironment(processEnvironment);
-  let sessionId: string | undefined;
+  const source = `huseong-blog-oauth-${randomUUID()}`;
   try {
     let stdout: string;
     try {
       const result = await run(
         invocation.bridgePythonBin,
-        hermesOAuthBridgeArgs(invocation),
+        hermesOAuthBridgeArgs(invocation, source),
         {
           timeout: invocation.timeoutMs,
           maxBuffer: 4 * 1024 * 1024,
@@ -223,13 +288,11 @@ export async function generateWithHermesOAuth(
       );
       stdout = String(result.stdout);
     } catch (error) {
-      sessionId = hermesSessionId(errorStdout(error));
       throw invocationFailure(error);
     }
     const parsed = parseHermesOAuthOutput(stdout);
-    sessionId = parsed.sessionId;
     return parsed.content;
   } finally {
-    await deleteHermesSession(invocation, sessionId, environment, run);
+    await deleteHermesSourceSessions(invocation, source, environment, run);
   }
 }

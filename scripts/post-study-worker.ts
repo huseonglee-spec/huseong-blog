@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { loadEnvFile } from "node:process";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { neon } from "@neondatabase/serverless";
@@ -15,6 +16,10 @@ import {
   type PostStudyItem,
 } from "../src/lib/post-study";
 import type { PostTranslationLocale } from "../src/lib/post-translation";
+import {
+  generateWithHermesOAuth,
+  HermesOAuthInvocationError,
+} from "../src/lib/server/hermes-oauth";
 import { enqueuePostStudyGeneration } from "../src/lib/server/post-study-queue";
 
 try {
@@ -28,9 +33,21 @@ if (!databaseUrl) throw new Error("DATABASE_URL is not configured");
 
 const sql = neon(databaseUrl);
 const execFileAsync = promisify(execFile);
-const hermesBin = process.env.HUSEONG_BLOG_STUDY_HERMES_BIN ?? "/home/huseong/.local/bin/hermes";
-const hermesProfile = process.env.HUSEONG_BLOG_STUDY_HERMES_PROFILE ?? "linux-coder";
-const hermesModel = process.env.HUSEONG_BLOG_STUDY_HERMES_MODEL ?? "gpt-5.6-sol";
+const configuredHermesProvider = process.env.HUSEONG_BLOG_STUDY_HERMES_PROVIDER ?? "openai-codex";
+if (configuredHermesProvider !== "openai-codex") {
+  throw new Error("Study generation requires the openai-codex OAuth provider");
+}
+const hermesInvocation = {
+  bridgePythonBin: process.env.HUSEONG_BLOG_STUDY_HERMES_PYTHON ??
+    "/home/huseong/.hermes/hermes-agent/venv/bin/python3",
+  bridgeScriptPath: process.env.HUSEONG_BLOG_STUDY_HERMES_BRIDGE ??
+    fileURLToPath(new URL("./hermes-oauth-stdin-bridge.py", import.meta.url)),
+  hermesBin: process.env.HUSEONG_BLOG_STUDY_HERMES_BIN ?? "/home/huseong/.local/bin/hermes",
+  profile: process.env.HUSEONG_BLOG_STUDY_HERMES_PROFILE ?? "linux-coder",
+  provider: configuredHermesProvider,
+  model: process.env.HUSEONG_BLOG_STUDY_HERMES_MODEL ?? "gpt-5.6-sol",
+  timeoutMs: 240_000,
+} as const;
 const maxJobs = parsePostStudyMaxJobs(process.env.HUSEONG_BLOG_STUDY_MAX_JOBS);
 const MAX_TRANSIENT_ATTEMPTS = 6;
 const MAX_INVALID_OUTPUT_ATTEMPTS = 3;
@@ -69,17 +86,6 @@ interface ClaimedGenerationRow {
 interface TranslationSourceRow {
   title: string;
   body_markdown: string;
-}
-
-interface HermesResult {
-  sessionId?: string;
-  content: string;
-}
-
-function hermesSessionId(stdout: string): string | undefined {
-  const line = stdout.split(/\r?\n/u)
-    .find((candidate) => candidate.startsWith("session_id:"));
-  return line?.slice("session_id:".length).trim() || undefined;
 }
 
 async function queueGeneration(
@@ -219,67 +225,6 @@ async function dismissedStudyItems(
   }));
 }
 
-function parseHermesOutput(stdout: string): HermesResult {
-  const lines = stdout.trim().split(/\r?\n/u);
-  const content = lines.filter((line) => !line.startsWith("session_id:")).join("\n").trim();
-  if (!content) throw new TypeError("hermes_empty_output");
-  const sessionId = hermesSessionId(stdout);
-  return {
-    ...(sessionId ? { sessionId } : {}),
-    content,
-  };
-}
-
-async function deleteHermesSession(sessionId: string | undefined): Promise<void> {
-  if (!sessionId) return;
-  try {
-    await execFileAsync(hermesBin, ["--profile", hermesProfile, "sessions", "delete", sessionId], {
-      timeout: 30_000,
-      maxBuffer: 256 * 1024,
-    });
-  } catch {
-    // Source-tagged worker sessions stay hidden from the normal chat list if cleanup fails.
-  }
-}
-
-async function generateWithHermes(prompt: string): Promise<string> {
-  const args = [
-    "--profile",
-    hermesProfile,
-    "chat",
-    "-Q",
-    "--ignore-rules",
-    "-t",
-    "todo",
-    "--source",
-    "tool",
-    "--max-turns",
-    "2",
-    "-m",
-    hermesModel,
-    "-q",
-    prompt,
-  ];
-  let stdout: string;
-  try {
-    const result = await execFileAsync(hermesBin, args, {
-      timeout: 240_000,
-      maxBuffer: 4 * 1024 * 1024,
-      env: process.env,
-    });
-    stdout = String(result.stdout);
-  } catch (error) {
-    const stdout = typeof error === "object" && error !== null && "stdout" in error
-      ? String(error.stdout ?? "")
-      : "";
-    await deleteHermesSession(hermesSessionId(stdout));
-    throw error;
-  }
-  const parsed = parseHermesOutput(stdout);
-  await deleteHermesSession(parsed.sessionId);
-  return parsed.content;
-}
-
 async function completeGeneration(
   job: ClaimedGenerationRow,
   items: readonly PostStudyItem[],
@@ -310,6 +255,7 @@ async function completeGeneration(
         CROSS JOIN current_source
        WHERE g.id = ${job.id}
          AND g.status = 'processing'
+         AND g.attempts = ${job.attempts}
          AND g.source_hash = ${job.source_hash}
          AND g.prompt_version = ${job.prompt_version}
        FOR UPDATE OF g
@@ -362,15 +308,20 @@ async function completeGeneration(
   return Boolean((rows as { completed: boolean }[])[0]?.completed);
 }
 
-async function supersedeGeneration(job: ClaimedGenerationRow): Promise<void> {
-  const source = await currentTranslation(job.post_slug, job.locale);
-  await sql`
+async function supersedeGeneration(job: ClaimedGenerationRow): Promise<boolean> {
+  const rows = await sql`
     UPDATE post_study_generations
        SET status = 'superseded',
            completed_at = now(),
            last_error = NULL
      WHERE id = ${job.id}
+       AND status = 'processing'
+       AND attempts = ${job.attempts}
+    RETURNING id
   `;
+  const row = (rows as { id: string }[])[0];
+  if (!row) return false;
+  const source = await currentTranslation(job.post_slug, job.locale);
   if (source) {
     await queueGeneration(
       job.post_slug,
@@ -380,20 +331,19 @@ async function supersedeGeneration(job: ClaimedGenerationRow): Promise<void> {
       postStudySourceHash(source.title, source.body_markdown),
     );
   }
+  return true;
 }
 
 function failureCode(error: unknown): "model_output_invalid" | "model_timeout" | "model_unavailable" {
+  if (error instanceof HermesOAuthInvocationError) return error.reason;
   if (error instanceof SyntaxError || error instanceof TypeError) return "model_output_invalid";
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "killed" in error &&
-    error.killed === true
-  ) return "model_timeout";
   return "model_unavailable";
 }
 
-async function failGeneration(job: ClaimedGenerationRow, error: unknown): Promise<boolean> {
+async function failGeneration(
+  job: ClaimedGenerationRow,
+  error: unknown,
+): Promise<boolean | undefined> {
   const code = failureCode(error);
   const maxAttempts = code === "model_output_invalid"
     ? MAX_INVALID_OUTPUT_ATTEMPTS
@@ -403,7 +353,7 @@ async function failGeneration(job: ClaimedGenerationRow, error: unknown): Promis
   const invalidDelays = [60, 300];
   const delays = code === "model_output_invalid" ? invalidDelays : transientDelays;
   const delaySeconds = delays[Math.min(job.attempts - 1, delays.length - 1)] ?? 300;
-  await sql`
+  const rows = await sql`
     UPDATE post_study_generations
        SET status = ${retry ? "pending" : "failed"},
            available_at = CASE
@@ -413,7 +363,12 @@ async function failGeneration(job: ClaimedGenerationRow, error: unknown): Promis
            completed_at = CASE WHEN ${retry} THEN NULL ELSE now() END,
            last_error = ${code}
      WHERE id = ${job.id}
+       AND status = 'processing'
+       AND attempts = ${job.attempts}
+    RETURNING status
   `;
+  const row = (rows as { status: string }[])[0];
+  if (!row) return undefined;
   return retry;
 }
 
@@ -434,7 +389,7 @@ async function processGeneration(
       bodyMarkdown: job.body_markdown,
       dismissedTexts: dismissed.map((item) => item.text),
     });
-    const raw = await generateWithHermes(prompt);
+    const raw = await generateWithHermesOAuth(prompt, hermesInvocation);
     const generated = parseGeneratedPostStudyItems({
       locale: job.locale,
       bodyMarkdown: job.body_markdown,
@@ -454,6 +409,7 @@ async function processGeneration(
     return "completed";
   } catch (error) {
     const retry = await failGeneration(job, error);
+    if (retry === undefined) return "superseded";
     return retry ? "retrying" : "failed";
   }
 }

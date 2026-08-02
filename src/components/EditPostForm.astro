@@ -1,6 +1,7 @@
 ---
 import type { BlogPost } from "../lib/posts";
 import { POST_VISIBILITIES, visibilityLabel } from "../lib/visibility";
+import PostWritingFeedback from "./PostWritingFeedback.astro";
 
 interface Props {
   post: BlogPost;
@@ -64,6 +65,8 @@ const endpoint = `/api/posts/${encodeURIComponent(post.id)}/`;
     maxlength="170000"
     required
   >{post.bodyMarkdown}</textarea>
+
+  <PostWritingFeedback slug={post.id} locale="ko" csrfToken={csrfToken} />
 
   <footer class="edit-post-footer">
     <p class="edit-post-status" data-edit-post-status aria-live="polite"></p>

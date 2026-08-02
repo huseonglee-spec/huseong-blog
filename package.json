@@ -9,6 +9,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "admin:password": "tsx scripts/set-admin-password.ts",
     "post": "tsx scripts/posts.ts",
+    "feedback:worker": "tsx scripts/post-writing-feedback-worker.ts",
     "study:worker": "tsx scripts/post-study-worker.ts",
     "translation:worker": "tsx scripts/post-translation-worker.ts",
     "preview": "astro preview",
