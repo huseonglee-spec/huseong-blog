@@ -6,6 +6,7 @@ const indexPageUrl = new URL("../pages/design-lab.astro", import.meta.url);
 const conceptPageUrl = new URL("../pages/design-lab/[concept].astro", import.meta.url);
 const homePageUrl = new URL("../pages/index.astro", import.meta.url);
 const permalinkPageUrl = new URL("../pages/posts/[slug].astro", import.meta.url);
+const globalStyleUrl = new URL("../styles/global.css", import.meta.url);
 const variations = ["focus", "focus-column", "focus-index", "focus-margin", "focus-night"];
 
 describe("FocusBlogConcept", () => {
@@ -89,6 +90,12 @@ describe("FocusBlogConcept", () => {
     expect(source).toContain('querySelectorAll<HTMLAnchorElement>("a[data-reader-language]")');
     expect(source).toContain("READER_LOCALE_COOKIE");
     expect(source).toContain("Max-Age=31536000");
+  });
+
+  it("언어판 길이에 따라 세로 스크롤바가 나타나도 본문의 가로 위치를 유지한다", async () => {
+    const source = await readFile(globalStyleUrl, "utf8");
+
+    expect(source).toMatch(/html\s*\{[^}]*scrollbar-gutter:\s*stable;/s);
   });
 
   it("언어판 링크를 국기와 구분선이 있는 하나의 분할 컨트롤로 보여준다", async () => {
