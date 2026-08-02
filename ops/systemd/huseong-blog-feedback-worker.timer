@@ -1,0 +1,12 @@
+[Unit]
+Description=Poll huseong.com writing feedback queue
+
+[Timer]
+OnBootSec=10s
+OnUnitInactiveSec=10s
+AccuracySec=1s
+Persistent=true
+Unit=huseong-blog-feedback-worker.service
+
+[Install]
+WantedBy=timers.target

@@ -262,6 +262,51 @@ await sql`
 `;
 
 await sql`
+  CREATE TABLE IF NOT EXISTS post_writing_feedback_generations (
+    id uuid PRIMARY KEY,
+    post_slug text NOT NULL REFERENCES posts(slug) ON DELETE CASCADE,
+    locale text NOT NULL CHECK (locale IN ('ko', 'en', 'ja', 'zh-CN')),
+    source_title text NOT NULL CHECK (length(btrim(source_title)) BETWEEN 1 AND 200),
+    source_body_markdown text NOT NULL CHECK (length(btrim(source_body_markdown)) > 0),
+    source_hash text NOT NULL CHECK (source_hash ~ '^[0-9a-f]{64}$'),
+    prompt_version integer NOT NULL CHECK (prompt_version > 0),
+    status text NOT NULL DEFAULT 'pending' CHECK (
+      status IN ('pending', 'processing', 'ready', 'failed', 'superseded')
+    ),
+    attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+    available_at timestamptz NOT NULL DEFAULT now(),
+    requested_at timestamptz NOT NULL DEFAULT now(),
+    started_at timestamptz,
+    completed_at timestamptz,
+    last_error text
+  )
+`;
+
+await sql`
+  CREATE UNIQUE INDEX IF NOT EXISTS post_writing_feedback_generations_active_unique
+      ON post_writing_feedback_generations (post_slug, locale)
+   WHERE status IN ('pending', 'processing', 'ready')
+`;
+
+await sql`
+  CREATE INDEX IF NOT EXISTS post_writing_feedback_generations_latest_idx
+      ON post_writing_feedback_generations (post_slug, locale, requested_at DESC, id DESC)
+`;
+
+await sql`
+  CREATE TABLE IF NOT EXISTS post_writing_feedback_items (
+    generation_id uuid NOT NULL REFERENCES post_writing_feedback_generations(id) ON DELETE CASCADE,
+    item_key text NOT NULL CHECK (item_key ~ '^[0-9a-f]{64}$'),
+    sort_order integer NOT NULL CHECK (sort_order >= 0),
+    feedback text NOT NULL CHECK (length(btrim(feedback)) BETWEEN 1 AND 1200),
+    reason text NOT NULL CHECK (length(btrim(reason)) BETWEEN 1 AND 1600),
+    dismissed_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (generation_id, item_key)
+  )
+`;
+
+await sql`
   CREATE TABLE IF NOT EXISTS admin_credentials (
     singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton = true),
     password_hash text NOT NULL,

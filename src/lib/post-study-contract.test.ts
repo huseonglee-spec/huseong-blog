@@ -7,6 +7,7 @@ const generateRouteUrl = new URL("../pages/api/posts/[slug]/study/generate.ts", 
 const dismissRouteUrl = new URL("../pages/api/posts/[slug]/study/dismiss.ts", import.meta.url);
 const statusRouteUrl = new URL("../pages/api/posts/[slug]/study/status.ts", import.meta.url);
 const workerUrl = new URL("../../scripts/post-study-worker.ts", import.meta.url);
+const serviceUrl = new URL("../../ops/systemd/huseong-blog-study-worker.service", import.meta.url);
 const middlewareUrl = new URL("../lib/server/auth-core.ts", import.meta.url);
 const postStudyServerUrl = new URL("../lib/server/post-study.ts", import.meta.url);
 const postStudyQueueUrl = new URL("../lib/server/post-study-queue.ts", import.meta.url);
@@ -86,24 +87,32 @@ describe("언어판 학습 데이터 계약", () => {
   });
 
   it("항상 켜진 로컬 worker가 API key 없이 Hermes OAuth 프로필로 처리한다", async () => {
-    const source = await readFile(workerUrl, "utf8");
+    const [source, service] = await Promise.all([
+      readFile(workerUrl, "utf8"),
+      readFile(serviceUrl, "utf8"),
+    ]);
 
-    expect(source).toContain('"--profile"');
+    expect(source).toContain("generateWithHermesOAuth");
+    expect(source).toContain("HermesOAuthInvocationError");
     expect(source).toContain('"linux-coder"');
-    expect(source).toContain('"--source"');
-    expect(source).toContain('"tool"');
-    expect(source).toContain('"-t"');
-    expect(source).toContain('"todo"');
-    expect(source).toContain('"--ignore-rules"');
-    expect(source).not.toContain('"safe"');
-    expect(source).toContain('"-m"');
     expect(source).toContain('"gpt-5.6-sol"');
+    expect(source).toContain('configuredHermesProvider !== "openai-codex"');
     expect(source).not.toContain("OPENAI_API_KEY");
     expect(source).not.toContain("api.openai.com");
+    expect(source).not.toContain("env: process.env");
+    expect(source).not.toContain("execFileAsync(hermesBin");
     expect(source).toContain("recoverStaleProcessingGenerations");
     expect(source).toContain("interval '20 minutes'");
     expect(source).toContain("prompt_version = ${POST_STUDY_PROMPT_VERSION}");
     expect(source).toContain("process.exitCode = 1");
     expect(source).toContain("assertCleanCheckout");
+    expect(source.match(/attempts = \$\{job\.attempts\}/gu)).toHaveLength(3);
+    expect(source).toContain("if (!row) return undefined");
+    expect(service).toContain("HUSEONG_BLOG_STUDY_HERMES_PROVIDER=openai-codex");
+    expect(service).toContain("HUSEONG_BLOG_STUDY_HERMES_PYTHON=");
+    expect(service).toContain("HUSEONG_BLOG_STUDY_HERMES_BRIDGE=");
+    expect(service).toContain("WorkingDirectory=/home/huseong/Workspace/.worktrees/huseong-blog-feedback-runtime");
+    expect(service).toContain("EnvironmentFile=/home/huseong/Workspace/huseong-blog/.env.local");
+    expect(service).toContain("ReadWritePaths=/home/huseong/.hermes/profiles/linux-coder");
   });
 });

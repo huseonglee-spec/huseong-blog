@@ -27,7 +27,7 @@ const bridgeUrl = new URL("../../../scripts/hermes-oauth-stdin-bridge.py", impor
 
 describe("Hermes OAuth 제한 실행", () => {
   it("private prompt 없이 고정 stdin bridge와 OAuth provider/profile/model만 argv로 전달한다", () => {
-    const args = hermesOAuthBridgeArgs(invocation);
+    const args = hermesOAuthBridgeArgs(invocation, "huseong-blog-oauth-test");
     expect(args).toEqual([
       "/app/scripts/hermes-oauth-stdin-bridge.py",
       "--profile",
@@ -36,37 +36,66 @@ describe("Hermes OAuth 제한 실행", () => {
       "openai-codex",
       "--model",
       "gpt-5.6-sol",
+      "--source",
+      "huseong-blog-oauth-test",
     ]);
     expect(args).not.toContain("-q");
     expect(args).not.toContain("prompt");
   });
 
-  it("OpenAI API key를 child 환경에서 제거하고 결과 session을 성공 뒤 정리한다", async () => {
+  it("OAuth child에는 최소 allowlist 환경만 전달하고 source session을 모두 정리한다", async () => {
     const calls: Array<{
       bin: string;
       args: readonly string[];
       env: Record<string, string>;
       stdin?: string;
     }> = [];
+    let deleted = false;
     const run: HermesOAuthExec = async (_bin, args, options) => {
       calls.push({ bin: _bin, args, env: options.env, stdin: options.stdin });
-      return calls.length === 1
-        ? { stdout: 'session_id:test-session\n{"ok":true}\n' }
-        : { stdout: "deleted" };
+      if (args.includes("--list-source-sessions")) {
+        return { stdout: deleted ? "" : "session_id:test-session" };
+      }
+      if (args.includes("delete")) {
+        deleted = true;
+        return { stdout: "deleted" };
+      }
+      return { stdout: 'session_id:test-session\n{"ok":true}\n' };
     };
 
     await expect(generateWithHermesOAuth(
       "prompt",
       invocation,
-      { HOME: "/home/huseong", OPENAI_API_KEY: "must-not-pass", SAFE: "yes" },
+      {
+        HOME: "/home/huseong",
+        PATH: "/usr/bin",
+        LANG: "ko_KR.UTF-8",
+        OPENAI_API_KEY: "must-not-pass",
+        DATABASE_URL: "must-not-pass",
+        SAFE: "must-not-pass",
+      },
       run,
     )).resolves.toBe('{"ok":true}');
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(4);
     expect(calls[0]?.bin).toBe(invocation.bridgePythonBin);
-    expect(calls[0]?.env).toEqual({ HOME: "/home/huseong", SAFE: "yes" });
+    expect(calls[0]?.env).toEqual({
+      HOME: "/home/huseong",
+      PATH: "/usr/bin",
+      LANG: "ko_KR.UTF-8",
+    });
     expect(calls[0]?.stdin).toBe("prompt");
     expect(calls[0]?.args).not.toContain("prompt");
+    const source = calls[0]?.args[(calls[0]?.args.indexOf("--source") ?? -2) + 1];
+    expect(source).toMatch(/^huseong-blog-oauth-[0-9a-f-]{36}$/u);
     expect(calls[1]?.args).toEqual([
+      invocation.bridgeScriptPath,
+      "--profile",
+      "linux-coder",
+      "--source",
+      source,
+      "--list-source-sessions",
+    ]);
+    expect(calls[2]?.args).toEqual([
       "--profile",
       "linux-coder",
       "sessions",
@@ -85,7 +114,7 @@ describe("Hermes OAuth 제한 실행", () => {
     }> = [];
     const run: HermesOAuthExec = async (_bin, args, options) => {
       calls.push({ args, env: options.env, stdin: options.stdin });
-      return { stdout: '{"ok":true}' };
+      return { stdout: args.includes("--list-source-sessions") ? "" : '{"ok":true}' };
     };
 
     await expect(generateWithHermesOAuth(
@@ -95,7 +124,7 @@ describe("Hermes OAuth 제한 실행", () => {
       run,
     )).resolves.toBe('{"ok":true}');
     expect(Buffer.byteLength(prompt, "utf8")).toBeGreaterThan(128 * 1024);
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(2);
     expect(calls[0]?.stdin).toBe(prompt);
     expect(calls[0]?.args.join("\u0000")).not.toContain("private-large-prompt");
     expect(Object.values(calls[0]?.env ?? {}).join("\u0000")).not.toContain(prompt);
@@ -131,7 +160,7 @@ describe("Hermes OAuth 제한 실행", () => {
         bridgeScriptPath: fileURLToPath(bridgeUrl),
         hermesBin: "/bin/true",
       };
-      const osArgs = hermesOAuthBridgeArgs(testInvocation);
+      const osArgs = hermesOAuthBridgeArgs(testInvocation, "huseong-blog-oauth-test");
       const content = await generateWithHermesOAuth(prompt, testInvocation, {
         PATH: process.env.PATH,
         PYTHONPATH: root,
@@ -177,16 +206,62 @@ describe("Hermes OAuth 제한 실행", () => {
     }
   });
 
-  it("timeout에서도 stdout credential을 노출하지 않고 session을 정리한다", async () => {
+  it("bridge cleanup mode는 exact source의 active session ID만 읽는다", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hermes-oauth-cleanup-"));
+    const profileDir = join(root, ".hermes", "profiles", "linux-coder");
+    const databasePath = join(profileDir, "state.db");
+    const source = "huseong-blog-oauth-00000000-0000-4000-8000-000000000001";
+    try {
+      await mkdir(profileDir, { recursive: true });
+      const seeded = spawnSync("python3", [
+        "-c",
+        [
+          "import sqlite3, sys",
+          "db = sqlite3.connect(sys.argv[1])",
+          "db.execute('create table sessions (id text primary key, source text not null)')",
+          "db.executemany('insert into sessions (id, source) values (?, ?)', [('session-match', sys.argv[2]), ('session-other', 'other-source')])",
+          "db.commit()",
+        ].join("; "),
+        databasePath,
+        source,
+      ], { encoding: "utf8" });
+      expect(seeded.status).toBe(0);
+
+      const listed = spawnSync("python3", [
+        fileURLToPath(bridgeUrl),
+        "--profile",
+        "linux-coder",
+        "--source",
+        source,
+        "--list-source-sessions",
+      ], {
+        encoding: "utf8",
+        env: { ...process.env, HOME: root },
+      });
+      expect(listed.status).toBe(0);
+      expect(listed.stdout.trim()).toBe("session_id:session-match");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("session id 없는 timeout도 invocation source로 정리한다", async () => {
     const calls: readonly string[][] = [];
     const mutableCalls = calls as string[][];
+    let listed = false;
     const run: HermesOAuthExec = async (_bin, args) => {
       mutableCalls.push([...args]);
+      if (args.includes("--list-source-sessions")) {
+        if (listed) return { stdout: "" };
+        listed = true;
+        return { stdout: "session_id:timed-out-session" };
+      }
+      if (args.includes("delete")) return { stdout: "deleted" };
       if (mutableCalls.length === 1) {
         throw {
           killed: true,
-          stdout: "session_id:timed-out-session\npartial-private-output",
-          stderr: "Authorization: secret",
+          stdout: "partial-private-output",
+          stderr: "Authorization: ***",
         };
       }
       return { stdout: "deleted" };
@@ -197,7 +272,8 @@ describe("Hermes OAuth 제한 실행", () => {
         reason: "model_timeout",
         message: "model_timeout",
       });
-    expect(mutableCalls[1]).toEqual([
+    expect(mutableCalls[1]).toContain("--list-source-sessions");
+    expect(mutableCalls[2]).toEqual([
       "--profile",
       "linux-coder",
       "sessions",
@@ -207,13 +283,39 @@ describe("Hermes OAuth 제한 실행", () => {
     ]);
   });
 
+  it("empty output도 source를 정리하고 cleanup 실패는 성공으로 반환하지 않는다", async () => {
+    const emptyCalls: string[][] = [];
+    const emptyRun: HermesOAuthExec = async (_bin, args) => {
+      emptyCalls.push([...args]);
+      return { stdout: "" };
+    };
+    await expect(generateWithHermesOAuth("prompt", invocation, {}, emptyRun))
+      .rejects.toThrow("empty");
+    expect(emptyCalls[1]).toContain("--list-source-sessions");
+
+    let attempts = 0;
+    const cleanupFailure: HermesOAuthExec = async () => {
+      attempts += 1;
+      if (attempts === 1) return { stdout: '{"ok":true}' };
+      throw new Error("cleanup unavailable");
+    };
+    await expect(generateWithHermesOAuth("prompt", invocation, {}, cleanupFailure))
+      .rejects.toMatchObject({ reason: "model_unavailable" });
+    expect(attempts).toBe(4);
+  });
+
   it("strict programmatic output에서 session metadata만 분리한다", () => {
     expect(parseHermesOAuthOutput("session_id:abc\n{\"title\":\"ok\"}\n")).toEqual({
       sessionId: "abc",
       content: '{"title":"ok"}',
     });
     expect(() => parseHermesOAuthOutput("session_id:abc\n")).toThrow("empty");
-    expect(sanitizedHermesEnvironment({ openai_api_key: "x", HOME: "/tmp" }))
-      .toEqual({ HOME: "/tmp" });
+    expect(sanitizedHermesEnvironment({
+      openai_api_key: "x",
+      DATABASE_URL: "private",
+      HOME: "/tmp",
+      PYTHONPATH: "/tmp/python",
+      PRIVATE_MARKER: "private",
+    })).toEqual({ HOME: "/tmp", PYTHONPATH: "/tmp/python" });
   });
 });
