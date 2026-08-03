@@ -111,7 +111,7 @@ describe("언어판 학습 데이터 계약", () => {
     expect(service).toContain("HUSEONG_BLOG_STUDY_HERMES_PROVIDER=openai-codex");
     expect(service).toContain("HUSEONG_BLOG_STUDY_HERMES_PYTHON=");
     expect(service).toContain("HUSEONG_BLOG_STUDY_HERMES_BRIDGE=");
-    expect(service).toContain("WorkingDirectory=/home/huseong/Workspace/.worktrees/huseong-blog-feedback-runtime");
+    expect(service).toContain("WorkingDirectory=/home/huseong/Workspace/huseong-blog");
     expect(service).toContain("EnvironmentFile=/home/huseong/Workspace/huseong-blog/.env.local");
     expect(service).toContain("ReadWritePaths=/home/huseong/.hermes/profiles/linux-coder");
   });

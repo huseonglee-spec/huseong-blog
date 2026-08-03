@@ -71,7 +71,7 @@ describe("글쓰기 피드백 운영 계약", () => {
     expect(service).toContain("HUSEONG_BLOG_FEEDBACK_HERMES_PROVIDER=openai-codex");
     expect(service).toContain("pnpm.cjs feedback:worker");
     expect(service).toContain("TimeoutStartSec=15min");
-    expect(service).toContain("WorkingDirectory=/home/huseong/Workspace/.worktrees/huseong-blog-feedback-runtime");
+    expect(service).toContain("WorkingDirectory=/home/huseong/Workspace/huseong-blog");
     expect(service).toContain("ReadWritePaths=/home/huseong/.hermes/profiles/linux-coder");
     expect(timer).toContain("OnUnitInactiveSec=10s");
   });

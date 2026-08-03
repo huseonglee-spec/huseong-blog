@@ -112,7 +112,7 @@ describe("번역 초안 end-to-end 계약", () => {
     expect(worker).toContain('configuredHermesProvider !== "openai-codex"');
     expect(helper).toContain("finally");
     expect(helper).toContain("deleteHermesSourceSessions");
-    expect(service).toContain("WorkingDirectory=/home/huseong/Workspace/.worktrees/huseong-blog-feedback-runtime");
+    expect(service).toContain("WorkingDirectory=/home/huseong/Workspace/huseong-blog");
     expect(service).toContain("EnvironmentFile=/home/huseong/Workspace/huseong-blog/.env.local");
     expect(service).toContain("ReadWritePaths=/home/huseong/.hermes/profiles/linux-coder");
     expect(service).toContain("HUSEONG_BLOG_TRANSLATION_HERMES_PROFILE=linux-coder");

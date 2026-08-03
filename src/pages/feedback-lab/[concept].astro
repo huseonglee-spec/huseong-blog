@@ -1,0 +1,28 @@
+---
+import WritingFeedbackDemo from "../../components/WritingFeedbackDemo.astro";
+import type { FeedbackDemoVariation } from "../../components/WritingFeedbackDemo.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+const concepts: FeedbackDemoVariation[] = [
+  "quiet-footer",
+  "sticky-toolbar",
+  "margin-tab",
+  "review-workspace",
+  "draft-memory",
+];
+const requestedConcept = Astro.params.concept;
+if (!concepts.includes(requestedConcept as FeedbackDemoVariation)) {
+  return Astro.redirect("/feedback-lab/");
+}
+const concept = requestedConcept as FeedbackDemoVariation;
+Astro.response.headers.set("Cache-Control", "no-store");
+---
+
+<BaseLayout
+  title={`${concept} 글쓰기 피드백 시안 · huseong.com`}
+  description="huseong.com 실제 글 수정 흐름에 맞춘 AI 피드백 UI/UX 데모"
+  canonicalPath={`/feedback-lab/${concept}/`}
+  robots="noindex, nofollow"
+>
+  <WritingFeedbackDemo variation={concept} />
+</BaseLayout>

@@ -1,0 +1,123 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const concepts = [
+  {
+    id: "quiet-footer",
+    number: "01",
+    name: "조용한 동료",
+    description: "저장 버튼 옆에서만 AI를 불러 글쓰기 흐름을 가장 적게 방해합니다.",
+    strong: "글에 집중",
+    weak: "긴 글에서는 버튼이 멀어짐",
+  },
+  {
+    id: "sticky-toolbar",
+    number: "02",
+    name: "상단 검토 바",
+    description: "긴 글을 쓰는 동안에도 검토 버튼과 미저장 상태를 계속 보여줍니다.",
+    strong: "동작 발견성",
+    weak: "도구의 존재감이 큼",
+  },
+  {
+    id: "margin-tab",
+    number: "03",
+    name: "여백 탭",
+    description: "평소에는 편집 면적을 온전히 유지하고 결과를 우측에 겹쳐 엽니다.",
+    strong: "쓰기 면적 보존",
+    weak: "패널이 본문 일부를 가림",
+  },
+  {
+    id: "review-workspace",
+    number: "04",
+    name: "양면 검토실",
+    description: "초안과 피드백을 나란히 놓아 여러 항목을 보며 수정하기 쉽습니다.",
+    strong: "수정 효율",
+    weak: "좁은 화면에서 무거움",
+  },
+  {
+    id: "draft-memory",
+    number: "05",
+    name: "초안 기억",
+    description: "이전 초안, 남은 피드백, 재검토의 관계를 가장 분명하게 드러냅니다.",
+    strong: "영속 상태 이해",
+    weak: "첫 사용에는 정보가 많음",
+  },
+] as const;
+---
+
+<BaseLayout
+  title="글쓰기 AI 피드백 UI/UX 시안 5종 · huseong.com"
+  description="huseong.com 실제 수정 흐름 위에서 비교하는 AI 글 피드백 UI/UX 데모"
+  canonicalPath="/feedback-lab/"
+  robots="noindex, nofollow"
+>
+  <main class="feedback-lab-index">
+    <header>
+      <a href="/">huseong.com</a>
+      <p>WRITING FEEDBACK LAB</p>
+      <h1>글은 그대로 두고,<br />표현의 빈틈만 보는<br />다섯 가지 방법</h1>
+      <span>각 안에서 제목과 본문을 직접 고친 뒤 <b>AI 피드백</b>을 눌러 보세요. 실제 모델·저장 기능은 연결하지 않은 UI/UX 비교 데모입니다.</span>
+    </header>
+
+    <section>
+      <div class="lab-note">
+        <strong>같은 글 · 같은 피드백</strong>
+        <p>버튼의 위치, 결과가 열리는 방식, 재검토 상태의 무게만 다릅니다.</p>
+      </div>
+      <nav aria-label="글쓰기 피드백 시안">
+        {concepts.map((concept) => (
+          <a href={`/feedback-lab/${concept.id}/`}>
+            <span>{concept.number}</span>
+            <div>
+              <strong>{concept.name}</strong>
+              <p>{concept.description}</p>
+              <dl>
+                <div><dt>강점</dt><dd>{concept.strong}</dd></div>
+                <div><dt>절충</dt><dd>{concept.weak}</dd></div>
+              </dl>
+            </div>
+            <i aria-hidden="true">↗</i>
+          </a>
+        ))}
+      </nav>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  :global(body) { background:#e9dfcf; }
+  .feedback-lab-index { display:grid; grid-template-columns:minmax(310px,.85fr) minmax(500px,1.15fr); min-height:100svh; }
+  .feedback-lab-index > header { display:flex; flex-direction:column; justify-content:center; padding:clamp(38px,6vw,94px); border-right:1px solid var(--line); background:var(--paper); }
+  .feedback-lab-index > header > a { align-self:flex-start; margin-bottom:auto; color:var(--ink); font-size:.74rem; font-weight:700; text-decoration:none; }
+  .feedback-lab-index > header > p { margin:0 0 1rem; color:var(--ink-soft); font-size:.55rem; letter-spacing:.16em; }
+  .feedback-lab-index h1 { margin:0; font-size:clamp(2rem,4.3vw,4.35rem); font-weight:650; line-height:1.2; letter-spacing:-.055em; }
+  .feedback-lab-index > header > span { max-width:33rem; margin:1.45rem 0 auto; color:var(--ink-soft); font-size:.76rem; line-height:1.8; }
+  .feedback-lab-index > section { display:grid; align-content:center; padding:clamp(24px,4.5vw,68px); }
+  .lab-note { display:flex; align-items:baseline; justify-content:space-between; gap:1rem; margin-bottom:1.2rem; color:var(--ink-soft); }
+  .lab-note strong { color:var(--ink); font-size:.68rem; }
+  .lab-note p { margin:0; font-size:.58rem; }
+  nav { display:grid; }
+  nav > a { display:grid; grid-template-columns:2.3rem minmax(0,1fr) auto; align-items:start; gap:1rem; padding:clamp(17px,2.5vh,26px) .45rem; border-bottom:1px solid rgba(65,52,38,.2); color:var(--ink); text-decoration:none; transition:padding .18s ease,background .18s ease; }
+  nav > a:first-child { border-top:1px solid rgba(65,52,38,.2); }
+  nav > a:hover { padding-inline:1rem; background:rgba(255,255,255,.24); }
+  nav > a > span { padding-top:.2rem; color:var(--ink-soft); font-size:.53rem; font-variant-numeric:tabular-nums; }
+  nav strong { font-size:clamp(1rem,1.8vw,1.35rem); }
+  nav p { margin:.3rem 0 .65rem; color:var(--ink-soft); font-size:.61rem; line-height:1.55; }
+  nav dl { display:flex; gap:1rem; margin:0; }
+  nav dl div { display:flex; gap:.35rem; font-size:.5rem; }
+  nav dt { color:var(--ink-soft); }
+  nav dd { margin:0; }
+  nav i { padding-top:.15rem; font-style:normal; }
+  @media(max-width:780px) {
+    .feedback-lab-index { display:block; }
+    .feedback-lab-index > header { min-height:48svh; padding:24px 22px 34px; border-right:0; border-bottom:1px solid var(--line); }
+    .feedback-lab-index > header > a { margin-bottom:10vh; }
+    .feedback-lab-index > header > span { margin-bottom:0; }
+    .feedback-lab-index > section { padding:22px; }
+    .lab-note { align-items:flex-start; flex-direction:column; gap:.25rem; }
+    nav > a { padding-block:20px; }
+    nav p { font-size:.58rem; }
+    nav dl { align-items:flex-start; flex-direction:column; gap:.15rem; }
+  }
+  @media(prefers-reduced-motion:reduce) { nav > a { transition:none; } }
+</style>

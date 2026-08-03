@@ -1,0 +1,597 @@
+---
+export const FEEDBACK_DEMO_VARIATIONS = [
+  "quiet-footer",
+  "sticky-toolbar",
+  "margin-tab",
+  "review-workspace",
+  "draft-memory",
+] as const;
+
+export type FeedbackDemoVariation = (typeof FEEDBACK_DEMO_VARIATIONS)[number];
+
+interface Props {
+  variation: FeedbackDemoVariation;
+}
+
+const { variation } = Astro.props;
+const variationInfo = {
+  "quiet-footer": { number: "01", name: "조용한 동료" },
+  "sticky-toolbar": { number: "02", name: "상단 검토 바" },
+  "margin-tab": { number: "03", name: "여백 탭" },
+  "review-workspace": { number: "04", name: "양면 검토실" },
+  "draft-memory": { number: "05", name: "초안 기억" },
+} as const;
+const info = variationInfo[variation];
+const concepts = FEEDBACK_DEMO_VARIATIONS.map((id) => ({ id, ...variationInfo[id] }));
+const initialReady = variation === "draft-memory";
+const initialPanelOpen = variation === "sticky-toolbar" || variation === "review-workspace" || initialReady;
+const draftBody = `내가 의미 있다고 생각하는 행동을 정의하고
+그것을 계속 수행하는 것을 반복한다.
+
+삶의 목표나 꿈 같은 것을 구체적으로 정의하지 않으려고 한다.
+어느 정도의 방향성, 혹은 그것조차 없는 상태에서 한 걸음 한 걸음 계속 나아가는 것에 집중한다.
+
+모든 원하는 대상에 대해서 약하게 원하는 상태를 유지한다.
+추구하되, 달성되지 않을 때 너무 큰 고통으로 이어지지 않도록 한다.`;
+const categoryGroups = [
+  {
+    key: "all",
+    label: "전체 글 보기",
+    count: 10,
+    expanded: false,
+    posts: ["삶의 방향성", "죽음의 수용소에서", "2026년 7월 16일", "글쓰기"],
+  },
+  {
+    key: "thought",
+    label: "생각",
+    count: 7,
+    expanded: true,
+    posts: ["삶의 방향성", "글쓰기", "정신 응급처치", "사고를 벼리기 위해서", "충분한 수면", "격일로 달리기", "언어가 사고를 지배한다."],
+  },
+  {
+    key: "book",
+    label: "책",
+    count: 1,
+    expanded: false,
+    posts: ["죽음의 수용소에서"],
+  },
+  {
+    key: "day",
+    label: "하루",
+    count: 2,
+    expanded: false,
+    posts: ["2026년 7월 16일", "2026년 7월 14일"],
+  },
+] as const;
+---
+
+<div
+  class="feedback-demo"
+  data-feedback-demo
+  data-variation={variation}
+  data-feedback-state={initialReady ? "ready" : "idle"}
+  data-panel-open={initialPanelOpen ? "true" : "false"}
+  data-category-open="false"
+  data-stale="false"
+>
+  <button
+    type="button"
+    class="category-rail-toggle"
+    data-category-rail-toggle
+    aria-controls="demo-category-rail"
+    aria-expanded="false"
+  >글 탐색</button>
+
+  <aside
+    id="demo-category-rail"
+    class="category-rail"
+    data-demo-category-rail
+    aria-label="카테고리 디렉터리"
+  >
+    <header class="category-header">
+      <a href="/">huseong.com</a>
+      <span>관리자 편집</span>
+    </header>
+
+    <nav class="category-directory" aria-label="카테고리별 글">
+      {categoryGroups.map((group) => (
+        <section class="category-group">
+          <button
+            type="button"
+            data-category-toggle
+            aria-expanded={group.expanded ? "true" : "false"}
+          >
+            <strong>{group.label}</strong>
+            <b>{group.count}</b>
+            <span aria-hidden="true"></span>
+          </button>
+          <div data-category-posts hidden={!group.expanded}>
+            {group.posts.map((post) => (
+              <a
+                href="#editor"
+                aria-current={post === "삶의 방향성" ? "page" : undefined}
+              >{post}</a>
+            ))}
+          </div>
+        </section>
+      ))}
+    </nav>
+
+    <footer class="account-actions" aria-label="계정 메뉴">
+      <button type="button">새 글 쓰기</button>
+      <button type="button">로그아웃</button>
+    </footer>
+  </aside>
+
+  <aside class="lab-switcher" aria-label="피드백 데모 전환">
+    <a class="lab-index-link" href="/feedback-lab/">AI FEEDBACK LAB</a>
+    <nav>
+      {concepts.map((concept) => (
+        <a
+          href={`/feedback-lab/${concept.id}/`}
+          aria-current={concept.id === variation ? "page" : undefined}
+          title={concept.name}
+        >{concept.number}</a>
+      ))}
+    </nav>
+    <strong>{info.name}</strong>
+  </aside>
+
+  <button
+    type="button"
+    class="feedback-panel-toggle"
+    data-feedback-panel-toggle
+    aria-controls="demo-feedback-panel"
+    aria-expanded="false"
+  >
+    <span aria-hidden="true">✦</span>
+    피드백 <b data-feedback-count>{initialReady ? "3" : ""}</b>
+  </button>
+
+  <button type="button" class="feedback-trigger feedback-trigger--edge" data-feedback-trigger>
+    <span aria-hidden="true">✦</span>
+    <span data-trigger-label>AI 피드백</span>
+  </button>
+
+  <main class="feedback-workspace">
+    <aside class="draft-history" aria-label="검토한 초안">
+      <header><span>DRAFTS</span><strong>검토 기록</strong></header>
+      <button type="button" data-draft-current aria-current="true"><span>현재</span><strong>방금 편집</strong><i>미저장</i></button>
+      <button type="button" data-draft-previous><span>이전</span><strong>AI 검토본</strong><i>피드백 3</i></button>
+      <p>글은 저장하지 않고<br />검토 스냅샷만 남깁니다.</p>
+    </aside>
+
+    <section id="editor" class="editor-stage" aria-label="글 수정 데모">
+      <header class="article-context">
+        <div class="article-position"><span>01 / 10</span><strong>생각</strong><i>공개 · 수정 중</i></div>
+        <button type="button" data-mark-draft-stale><span data-draft-state-label>이전 초안 상태 보기</span></button>
+      </header>
+
+      <nav class="reader-language-list" aria-label="이 글의 언어판">
+        <button type="button" aria-current="page"><span aria-hidden="true">🇰🇷</span>한국어</button>
+        <button type="button"><span aria-hidden="true">🇺🇸</span>English</button>
+        <button type="button"><span aria-hidden="true">🇯🇵</span>日本語</button>
+        <button type="button"><span aria-hidden="true">🇨🇳</span>简体中文</button>
+      </nav>
+
+      <div class="editor-toolbar">
+        <div><span class="save-state"><i></i> 저장하지 않음</span><span>한국어 원문</span></div>
+        <button type="button" class="feedback-trigger feedback-trigger--top" data-feedback-trigger>
+          <span aria-hidden="true">✦</span><span data-trigger-label>AI 피드백</span>
+        </button>
+      </div>
+
+      <form class="demo-editor" onsubmit="return false">
+        <label class="visually-hidden" for={`demo-title-${variation}`}>제목</label>
+        <input
+          id={`demo-title-${variation}`}
+          class="editor-title"
+          name="title"
+          type="text"
+          value="삶의 방향성"
+          autocomplete="off"
+        />
+
+        <label class="visually-hidden" for={`demo-body-${variation}`}>본문</label>
+        <textarea
+          id={`demo-body-${variation}`}
+          class="editor-body"
+          name="bodyMarkdown"
+          spellcheck="false"
+        >{draftBody}</textarea>
+
+        <footer class="editor-footer">
+          <p>Markdown · 현재 편집 내용으로 검토</p>
+          <div>
+            <button type="button" class="plain-button">취소</button>
+            <button type="button" class="feedback-trigger feedback-trigger--footer" data-feedback-trigger>
+              <span aria-hidden="true">✦</span><span data-trigger-label>AI 피드백</span>
+            </button>
+            <button type="button" class="save-button">저장</button>
+          </div>
+        </footer>
+      </form>
+    </section>
+
+    <aside
+      id="demo-feedback-panel"
+      class="feedback-panel"
+      data-feedback-panel
+      role="complementary"
+      aria-label="AI 글 피드백"
+    >
+      <header class="feedback-panel-header">
+        <div><p><span aria-hidden="true">✦</span> WRITING FEEDBACK</p><h2>표현 피드백</h2></div>
+        <button type="button" data-feedback-panel-toggle aria-label="피드백 패널 닫기">×</button>
+      </header>
+
+      <p class="stale-notice" data-stale-notice>
+        <strong>이전 초안 기준</strong>
+        현재 편집 내용과 검토한 초안이 다릅니다.
+      </p>
+
+      <section class="feedback-idle" data-feedback-idle>
+        <span aria-hidden="true">✦</span>
+        <h3>생각은 건드리지 않고<br />표현의 빈틈만 찾습니다.</h3>
+        <p>현재 저장하지 않은 제목과 본문을 검토합니다. 글을 자동으로 고치거나 저장하지 않습니다.</p>
+        <button type="button" class="feedback-trigger feedback-trigger--panel" data-feedback-trigger>
+          <span data-trigger-label>피드백 받기</span>
+        </button>
+      </section>
+
+      <section class="feedback-loading" data-feedback-loading aria-live="polite">
+        <div class="loading-mark"><i></i><i></i><i></i></div>
+        <h3>피드백을 찾는 중…</h3>
+        <p>어휘의 정확성, 간결성, 행갈이와 리듬을 살펴보고 있습니다.</p>
+      </section>
+
+      <div class="feedback-list" data-feedback-list aria-live="polite">
+        <article class="feedback-card" data-feedback-card>
+          <button type="button" data-dismiss-feedback aria-label="피드백 삭제">×</button>
+          <strong data-feedback-message>‘계속’과 ‘반복한다’ 중 하나를 덜어내세요.</strong>
+          <p data-feedback-reason>두 표현이 모두 지속을 나타내어 같은 의미가 겹칩니다. 반복의 태도가 오히려 흐려집니다.</p>
+        </article>
+        <article class="feedback-card" data-feedback-card>
+          <button type="button" data-dismiss-feedback aria-label="피드백 삭제">×</button>
+          <strong data-feedback-message>의도가 욕망의 지속적인 긴장이라면 ‘원하는 대상’보다 ‘갈망의 대상’을 후보로 검토하세요.</strong>
+          <p data-feedback-reason>‘원하다’는 바람의 강도를 넓게 포함하지만, 이 문단은 추구하면서도 고통에 이르지 않게 유지하는 미약한 욕망의 상태를 말하고 있습니다.</p>
+        </article>
+        <article class="feedback-card" data-feedback-card>
+          <button type="button" data-dismiss-feedback aria-label="피드백 삭제">×</button>
+          <strong data-feedback-message>‘어느 정도의 방향성’ 뒤에서 행을 나누어 ‘혹은 그것조차 없는 상태’와의 대비를 분리해 보세요.</strong>
+          <p data-feedback-reason>현재 한 문장에 두 상태와 행동이 이어져 핵심 대비가 묻힙니다. 행갈이만으로 사고를 확장하지 않고 리듬을 선명하게 만들 수 있습니다.</p>
+        </article>
+      </div>
+
+      <p class="feedback-empty" data-feedback-empty>현재 남아 있는 피드백이 없습니다.</p>
+
+      <footer class="feedback-panel-footer">
+        <p>이 글의 검토 스냅샷 · 방금</p>
+        <button type="button" data-feedback-rerun><span aria-hidden="true">↻</span> 빈틈 다시 찾기</button>
+      </footer>
+    </aside>
+  </main>
+</div>
+
+<script>
+  document.querySelectorAll<HTMLElement>("[data-feedback-demo]").forEach((root) => {
+    const panel = root.querySelector<HTMLElement>("[data-feedback-panel]");
+    const categoryRail = root.querySelector<HTMLElement>("[data-demo-category-rail]");
+    const panelToggles = Array.from(root.querySelectorAll<HTMLButtonElement>("[data-feedback-panel-toggle]"));
+    const categoryRailToggles = Array.from(root.querySelectorAll<HTMLButtonElement>("[data-category-rail-toggle]"));
+    const triggers = Array.from(root.querySelectorAll<HTMLButtonElement>("[data-feedback-trigger]"));
+    const rerun = root.querySelector<HTMLButtonElement>("[data-feedback-rerun]");
+    const staleButtons = Array.from(root.querySelectorAll<HTMLButtonElement>("[data-mark-draft-stale]"));
+    const currentDraft = root.querySelector<HTMLButtonElement>("[data-draft-current]");
+    const previousDraft = root.querySelector<HTMLButtonElement>("[data-draft-previous]");
+    const draftStateLabels = Array.from(root.querySelectorAll<HTMLElement>("[data-draft-state-label]"));
+    const countNodes = Array.from(root.querySelectorAll<HTMLElement>("[data-feedback-count]"));
+    const mobileViewport = matchMedia("(max-width:820px)");
+    let timer: number | undefined;
+
+    const visibleCards = () => Array.from(root.querySelectorAll<HTMLElement>("[data-feedback-card]"));
+    const updateCount = () => {
+      const count = visibleCards().length;
+      countNodes.forEach((node) => { node.textContent = count > 0 ? String(count) : ""; });
+      root.dataset.feedbackEmpty = String(count === 0);
+    };
+    const setPanelOpen = (open: boolean) => {
+      if (open && mobileViewport.matches) {
+        root.dataset.categoryOpen = "false";
+        categoryRailToggles.forEach((button) => button.setAttribute("aria-expanded", "false"));
+        categoryRail?.toggleAttribute("inert", true);
+        categoryRail?.setAttribute("aria-hidden", "true");
+      }
+      root.dataset.panelOpen = String(open);
+      panelToggles.forEach((button) => button.setAttribute("aria-expanded", String(open)));
+      if (panel) {
+        panel.toggleAttribute("inert", !open);
+        panel.setAttribute("aria-hidden", String(!open));
+      }
+    };
+    const setCategoryOpen = (open: boolean) => {
+      if (open && mobileViewport.matches) setPanelOpen(false);
+      root.dataset.categoryOpen = String(open);
+      categoryRailToggles.forEach((button) => button.setAttribute("aria-expanded", String(open)));
+      if (categoryRail) {
+        categoryRail.toggleAttribute("inert", !open && mobileViewport.matches);
+        categoryRail.setAttribute("aria-hidden", String(!open && mobileViewport.matches));
+      }
+    };
+    const setTriggerState = (loading: boolean) => {
+      triggers.forEach((button) => {
+        button.disabled = loading;
+        const label = button.querySelector<HTMLElement>("[data-trigger-label]");
+        if (label) label.textContent = loading ? "검토 중…" : "AI 피드백";
+      });
+      staleButtons.forEach((button) => { button.disabled = loading; });
+      [currentDraft, previousDraft].forEach((button) => {
+        if (button) button.disabled = loading;
+      });
+      if (rerun) rerun.disabled = loading;
+    };
+    const setDraftStale = (stale: boolean) => {
+      root.dataset.stale = String(stale);
+      const selectedDraft = stale ? previousDraft : currentDraft;
+      const unselectedDraft = stale ? currentDraft : previousDraft;
+      selectedDraft?.setAttribute("aria-current", "true");
+      unselectedDraft?.removeAttribute("aria-current");
+      draftStateLabels.forEach((label) => { label.textContent = stale ? "현재 초안으로 돌아가기" : "이전 초안 상태 보기"; });
+    };
+    const selectDraft = (stale: boolean) => {
+      setDraftStale(stale);
+      if (stale) {
+        root.dataset.feedbackState = "ready";
+        setPanelOpen(true);
+        updateCount();
+      }
+    };
+    const runFeedback = () => {
+      window.clearTimeout(timer);
+      setPanelOpen(true);
+      root.dataset.feedbackState = "loading";
+      root.dataset.feedbackEmpty = "false";
+      setTriggerState(true);
+      timer = window.setTimeout(() => {
+        root.dataset.feedbackState = "ready";
+        setDraftStale(false);
+        setTriggerState(false);
+        updateCount();
+      }, 780);
+    };
+
+    root.querySelectorAll<HTMLButtonElement>("[data-category-toggle]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const posts = button.nextElementSibling as HTMLElement | null;
+        const expanded = button.getAttribute("aria-expanded") !== "true";
+        button.setAttribute("aria-expanded", String(expanded));
+        if (posts?.matches("[data-category-posts]")) posts.hidden = !expanded;
+      });
+    });
+    categoryRailToggles.forEach((button) => button.addEventListener("click", () => setCategoryOpen(root.dataset.categoryOpen !== "true")));
+    mobileViewport.addEventListener("change", () => setCategoryOpen(false));
+    triggers.forEach((button) => button.addEventListener("click", runFeedback));
+    rerun?.addEventListener("click", runFeedback);
+    panelToggles.forEach((button) => button.addEventListener("click", () => setPanelOpen(root.dataset.panelOpen !== "true")));
+    currentDraft?.addEventListener("click", () => selectDraft(false));
+    previousDraft?.addEventListener("click", () => selectDraft(true));
+    staleButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        selectDraft(root.dataset.stale !== "true");
+      });
+    });
+    root.querySelectorAll<HTMLButtonElement>("[data-dismiss-feedback]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const card = button.closest<HTMLElement>("[data-feedback-card]");
+        if (!card) return;
+        card.animate(
+          [{ opacity: 1, transform: "translateX(0)" }, { opacity: 0, transform: "translateX(18px)" }],
+          { duration: 160, easing: "ease-out" },
+        ).finished.then(() => { card.remove(); updateCount(); });
+      });
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        if (root.dataset.panelOpen === "true") setPanelOpen(false);
+        if (root.dataset.categoryOpen === "true") setCategoryOpen(false);
+      }
+    });
+
+    const initiallyOpen = root.dataset.panelOpen === "true" && !mobileViewport.matches;
+    setPanelOpen(initiallyOpen);
+    setCategoryOpen(false);
+    if (root.dataset.feedbackState === "ready") updateCount();
+  });
+</script>
+
+<style>
+  :global(body:has(.feedback-demo)) { overflow-x:hidden; background:#f7f3e9; }
+  .feedback-demo {
+    --category-rail:300px;
+    --panel:360px;
+    --paper:#f7f3e9;
+    --paper-side:#ece5d7;
+    --sheet:#fffcf5;
+    --ink:#2a251f;
+    --muted:#81776b;
+    --line:rgba(70,57,43,.16);
+    --accent:#6e5035;
+    min-height:100svh;
+    color:var(--ink);
+    background:var(--paper);
+  }
+  button,input,textarea { font:inherit; }
+  button { color:inherit; }
+  .visually-hidden { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+
+  .category-rail { position:fixed; z-index:35; top:0; bottom:0; left:0; display:grid; grid-template-rows:auto minmax(0,1fr) auto; width:var(--category-rail); padding:28px 22px 26px; border-right:1px solid var(--line); background:var(--paper-side); }
+  .category-header { display:grid; gap:.18rem; padding:0 .25rem 1.35rem; }
+  .category-header a { color:var(--ink); font-size:.86rem; font-weight:700; text-decoration:none; }
+  .category-header span { color:var(--muted); font-size:.54rem; letter-spacing:.08em; }
+  .category-directory { min-height:0; overflow-y:auto; scrollbar-width:none; }
+  .category-directory::-webkit-scrollbar { display:none; }
+  .category-group { border-bottom:1px solid var(--line); }
+  .category-group > button { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:.7rem; width:100%; padding:.85rem .25rem; border:0; color:var(--ink); background:transparent; text-align:left; cursor:pointer; }
+  .category-group > button strong { font-size:.91rem; }
+  .category-group > button b { display:grid; place-items:center; min-width:1.7rem; height:1.7rem; border:1px solid var(--line); border-radius:50%; font-size:.58rem; font-weight:500; }
+  .category-group > button > span { width:.45rem; height:.45rem; border-right:1px solid currentColor; border-bottom:1px solid currentColor; transform:rotate(-45deg); transition:transform .18s ease; }
+  .category-group > button[aria-expanded="true"] > span { transform:rotate(45deg); }
+  .category-group > div { display:grid; padding:0 0 .6rem .7rem; }
+  .category-group > div[hidden] { display:none; }
+  .category-group > div a { padding:.55rem .45rem; border-left:2px solid transparent; color:var(--muted); font-size:.78rem; line-height:1.4; text-decoration:none; }
+  .category-group > div a:hover,.category-group > div a[aria-current="page"] { border-left-color:var(--accent); color:var(--ink); background:color-mix(in srgb,var(--paper) 65%,transparent); }
+  .account-actions { display:flex; gap:.7rem; padding:.85rem .25rem 0; border-top:1px solid var(--line); }
+  .account-actions button { padding:0; border:0; color:var(--muted); background:transparent; font-size:.67rem; text-decoration:underline; text-underline-offset:.23em; cursor:pointer; }
+  .account-actions button:hover { color:var(--ink); }
+  .category-rail-toggle { display:none; }
+
+  .lab-switcher { position:fixed; z-index:60; top:12px; left:calc(var(--category-rail) + 14px); display:flex; align-items:center; gap:.55rem; min-height:2.4rem; padding:.35rem .55rem; border:1px solid var(--line); border-radius:999px; background:color-mix(in srgb,var(--paper) 92%,transparent); box-shadow:0 7px 24px rgba(57,45,30,.08); backdrop-filter:blur(12px); }
+  .lab-index-link { color:var(--muted); font-size:.45rem; letter-spacing:.08em; text-decoration:none; }
+  .lab-switcher nav { display:flex; }
+  .lab-switcher nav a { display:grid; place-items:center; width:1.65rem; height:1.65rem; border-radius:50%; color:var(--muted); font-size:.48rem; text-decoration:none; }
+  .lab-switcher nav a:hover,.lab-switcher nav a[aria-current="page"] { color:var(--paper); background:var(--ink); }
+  .lab-switcher > strong { padding-right:.25rem; font-size:.56rem; }
+
+  .feedback-workspace { min-height:100svh; margin-left:var(--category-rail); padding:clamp(82px,10vh,112px) clamp(38px,6vw,86px) 110px; transition:margin-right .22s ease; }
+  .feedback-demo[data-panel-open="true"]:not([data-variation="margin-tab"]) .feedback-workspace { margin-right:var(--panel); }
+  .editor-stage { width:min(650px,100%); margin:0 auto; }
+  .article-context { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; margin-bottom:1rem; }
+  .article-position { display:flex; align-items:baseline; gap:.55rem; color:var(--muted); }
+  .article-position span { font-size:.48rem; font-variant-numeric:tabular-nums; }
+  .article-position strong { color:var(--ink); font-size:.72rem; }
+  .article-position i { font-size:.52rem; font-style:normal; }
+  .article-context > button { padding:0; border:0; color:var(--muted); background:transparent; font-size:.52rem; text-decoration:underline; text-underline-offset:.23em; cursor:pointer; }
+  .reader-language-list { display:inline-flex; max-width:100%; margin-bottom:2rem; overflow-x:auto; border:1px solid var(--line); border-radius:999px; background:color-mix(in srgb,var(--paper-side) 58%,transparent); scrollbar-width:none; }
+  .reader-language-list button { display:inline-flex; align-items:center; gap:.28rem; min-height:2.25rem; padding:.38rem .58rem; border:0; border-right:1px solid var(--line); color:var(--muted); background:transparent; font-size:.7rem; cursor:pointer; }
+  .reader-language-list button:last-child { border-right:0; }
+  .reader-language-list button[aria-current="page"] { color:var(--paper); background:var(--ink); }
+  .editor-toolbar { display:none; }
+  .demo-editor { display:grid; }
+  .editor-title,.editor-body { width:100%; padding:0; border:0; outline:0; color:var(--ink); background:transparent; }
+  .editor-title:focus-visible,.editor-body:focus-visible { box-shadow:inset 0 -2px 0 color-mix(in srgb,var(--accent) 48%,transparent); }
+  .editor-title { margin-bottom:2.4rem; font-size:clamp(2.25rem,4.2vw,3.65rem); font-weight:650; line-height:1.18; letter-spacing:-.05em; }
+  .editor-body { min-height:54vh; resize:none; font-size:clamp(1rem,1.35vw,1.08rem); line-height:1.95; }
+  .editor-footer { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-top:2.4rem; padding-top:1rem; border-top:1px solid var(--line); }
+  .editor-footer p { margin:0; color:var(--muted); font-size:.57rem; }
+  .editor-footer > div { display:flex; gap:.55rem; }
+  .editor-footer button,.editor-toolbar button,.feedback-panel button { min-height:2.55rem; padding:.55rem .8rem; border:1px solid var(--line); border-radius:2px; background:transparent; font-size:.65rem; cursor:pointer; }
+  .editor-footer button:hover,.editor-toolbar button:hover,.feedback-panel button:hover { border-color:var(--ink); }
+  .editor-footer .save-button { border-color:var(--ink); color:var(--paper); background:var(--ink); }
+
+  .feedback-trigger { align-items:center; justify-content:center; gap:.4rem; }
+  .feedback-trigger:disabled,.feedback-panel button:disabled { cursor:wait; opacity:.5; }
+  .feedback-trigger--top,.feedback-trigger--edge,.feedback-trigger--panel { display:none; }
+  .feedback-trigger--footer { display:inline-flex; }
+  .feedback-panel-toggle { position:fixed; z-index:56; right:14px; bottom:14px; display:none; align-items:center; gap:.4rem; min-height:2.75rem; padding:.55rem .85rem; border:1px solid var(--line); border-radius:999px; background:var(--sheet); box-shadow:0 9px 28px rgba(57,45,30,.13); cursor:pointer; }
+  .feedback-panel-toggle b { min-width:1.2rem; font-size:.62rem; font-weight:500; }
+  .feedback-panel { position:fixed; z-index:50; top:0; right:0; bottom:0; width:var(--panel); overflow-y:auto; overscroll-behavior:contain; border-left:1px solid var(--line); background:#f1eadf; box-shadow:-14px 0 34px rgba(57,45,30,.06); transform:translateX(105%); transition:transform .22s cubic-bezier(.2,.75,.2,1); scrollbar-width:none; }
+  .feedback-panel::-webkit-scrollbar { display:none; }
+  .feedback-demo[data-panel-open="true"] .feedback-panel { transform:translateX(0); }
+  .feedback-panel-header { position:sticky; z-index:3; top:0; display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding:1.3rem 1.2rem 1rem; border-bottom:1px solid var(--line); background:color-mix(in srgb,#f1eadf 94%,transparent); backdrop-filter:blur(14px); }
+  .feedback-panel-header p { margin:0 0 .2rem; color:var(--muted); font-size:.5rem; letter-spacing:.1em; }
+  .feedback-panel-header h2 { margin:0; font-size:1rem; }
+  .feedback-panel-header button { min-width:2.5rem; padding:0; border:0; font-size:1.2rem; }
+  .stale-notice { display:none; margin:1rem; padding:.8rem .85rem; border:1px solid #b99050; color:#655337; background:#f6e9ce; font-size:.66rem; line-height:1.55; }
+  .stale-notice strong { display:block; margin-bottom:.18rem; }
+  .feedback-demo[data-stale="true"] .stale-notice { display:block; }
+  .feedback-idle { display:grid; place-items:start; padding:clamp(36px,7vh,68px) 1.25rem; }
+  .feedback-idle > span { display:grid; place-items:center; width:2.2rem; height:2.2rem; border:1px solid var(--line); border-radius:50%; color:var(--accent); }
+  .feedback-idle h3 { margin:1rem 0 .65rem; font-size:1.03rem; line-height:1.55; }
+  .feedback-idle p { margin:0; color:var(--muted); font-size:.7rem; line-height:1.7; }
+  .feedback-idle .feedback-trigger--panel { display:inline-flex; margin-top:1.3rem; border-color:var(--ink); color:var(--paper); background:var(--ink); }
+  .feedback-loading { display:none; place-items:center; padding:clamp(54px,12vh,110px) 1.25rem; text-align:center; }
+  .loading-mark { display:flex; gap:.28rem; }
+  .loading-mark i { width:.32rem; height:.32rem; border-radius:50%; background:var(--accent); animation:pulse 1s infinite ease-in-out; }
+  .loading-mark i:nth-child(2) { animation-delay:.14s; }
+  .loading-mark i:nth-child(3) { animation-delay:.28s; }
+  .feedback-loading h3 { margin:.85rem 0 .35rem; font-size:.92rem; }
+  .feedback-loading p { max-width:15rem; margin:0; color:var(--muted); font-size:.66rem; line-height:1.65; }
+  .feedback-list { display:none; }
+  .feedback-card { position:relative; padding:1.25rem 1.2rem 1.35rem; border-bottom:1px solid var(--line); }
+  .feedback-card > button { position:absolute; top:.72rem; right:.72rem; min-width:2.35rem; padding:0; border:0; border-radius:50%; color:var(--muted); font-size:1.05rem; }
+  .feedback-card > button:hover { background:var(--paper); }
+  .feedback-card strong { display:block; max-width:calc(100% - 2.4rem); font-size:.8rem; line-height:1.72; }
+  .feedback-card p { margin:.72rem 0 0; color:var(--muted); font-size:.69rem; line-height:1.72; }
+  .feedback-empty { display:none; margin:1rem; color:var(--muted); font-size:.7rem; }
+  .feedback-panel-footer { display:none; gap:.75rem; padding:1.2rem; }
+  .feedback-panel-footer p { margin:0; color:var(--muted); font-size:.58rem; }
+  .feedback-panel-footer button { width:100%; border-color:var(--ink); }
+  .feedback-demo[data-feedback-state="loading"] .feedback-idle,.feedback-demo[data-feedback-state="loading"] .feedback-list,.feedback-demo[data-feedback-state="loading"] .feedback-panel-footer { display:none; }
+  .feedback-demo[data-feedback-state="loading"] .feedback-loading { display:grid; }
+  .feedback-demo[data-feedback-state="ready"] .feedback-idle,.feedback-demo[data-feedback-state="ready"] .feedback-loading { display:none; }
+  .feedback-demo[data-feedback-state="ready"] .feedback-list,.feedback-demo[data-feedback-state="ready"] .feedback-panel-footer { display:grid; }
+  .feedback-demo[data-feedback-state="ready"][data-feedback-empty="true"] .feedback-list { display:none; }
+  .feedback-demo[data-feedback-state="ready"][data-feedback-empty="true"] .feedback-empty { display:block; }
+  .draft-history { display:none; }
+
+  .feedback-demo[data-variation="quiet-footer"] .feedback-panel { background:#f3ede2; }
+
+  .feedback-demo[data-variation="sticky-toolbar"] .editor-toolbar { position:sticky; z-index:20; top:14px; display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:2rem; padding:.55rem .65rem; border:1px solid var(--line); border-radius:999px; background:color-mix(in srgb,var(--paper) 92%,transparent); box-shadow:0 8px 26px rgba(57,45,30,.07); backdrop-filter:blur(12px); }
+  .feedback-demo[data-variation="sticky-toolbar"] .editor-toolbar > div { display:flex; gap:.65rem; color:var(--muted); font-size:.55rem; }
+  .feedback-demo[data-variation="sticky-toolbar"] .save-state i { display:inline-block; width:.42rem; height:.42rem; margin-right:.25rem; border-radius:50%; background:#a67243; }
+  .feedback-demo[data-variation="sticky-toolbar"] .feedback-trigger--top { display:inline-flex; min-height:2.2rem; padding:.35rem .7rem; border-color:var(--ink); color:var(--paper); background:var(--ink); }
+  .feedback-demo[data-variation="sticky-toolbar"] .feedback-trigger--footer { display:none; }
+
+  .feedback-demo[data-variation="margin-tab"] .feedback-trigger--footer { display:none; }
+  .feedback-demo[data-variation="margin-tab"] .feedback-trigger--edge { position:fixed; z-index:55; top:47%; right:0; display:flex; writing-mode:vertical-rl; min-width:2.8rem; padding:.9rem .6rem; border:1px solid var(--line); border-right:0; border-radius:3px 0 0 3px; background:var(--sheet); box-shadow:-8px 8px 24px rgba(57,45,30,.09); cursor:pointer; }
+  .feedback-demo[data-variation="margin-tab"][data-panel-open="true"] .feedback-trigger--edge { display:none; }
+  .feedback-demo[data-variation="margin-tab"] .feedback-panel { top:14px; right:14px; bottom:14px; border:1px solid var(--line); border-radius:4px; box-shadow:-12px 14px 42px rgba(57,45,30,.15); }
+
+  .feedback-demo[data-variation="review-workspace"] { --panel:400px; }
+  .feedback-demo[data-variation="review-workspace"] .editor-toolbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:2rem; padding-bottom:.7rem; border-bottom:1px solid var(--line); }
+  .feedback-demo[data-variation="review-workspace"] .editor-toolbar > div { display:flex; gap:.7rem; color:var(--muted); font-size:.55rem; }
+  .feedback-demo[data-variation="review-workspace"] .feedback-trigger--top { display:inline-flex; border-color:var(--ink); }
+  .feedback-demo[data-variation="review-workspace"] .feedback-trigger--footer { display:none; }
+  .feedback-demo[data-variation="review-workspace"] .feedback-panel { box-shadow:none; }
+
+  .feedback-demo[data-variation="draft-memory"] .feedback-workspace { padding-left:190px; }
+  .feedback-demo[data-variation="draft-memory"] .draft-history { position:fixed; z-index:20; top:86px; left:calc(var(--category-rail) + 20px); display:grid; align-content:start; width:135px; }
+  .draft-history header { display:grid; margin-bottom:1rem; }
+  .draft-history header span { color:var(--muted); font-size:.47rem; letter-spacing:.12em; }
+  .draft-history header strong { margin-top:.18rem; font-size:.76rem; }
+  .draft-history button { display:grid; gap:.12rem; padding:.75rem .65rem; border:0; border-top:1px solid var(--line); color:var(--muted); background:transparent; text-align:left; cursor:pointer; }
+  .draft-history button[aria-current="true"] { border-left:2px solid var(--accent); color:var(--ink); background:var(--paper-side); }
+  .draft-history button span,.draft-history button i { font-size:.48rem; font-style:normal; }
+  .draft-history button strong { font-size:.68rem; }
+  .draft-history p { margin:1rem 0 0; color:var(--muted); font-size:.52rem; line-height:1.6; }
+  .feedback-demo[data-variation="draft-memory"] .feedback-trigger--footer { display:none; }
+  .feedback-demo[data-variation="draft-memory"][data-panel-open="false"] > .feedback-panel-toggle { display:flex; }
+  .feedback-demo[data-variation="draft-memory"] .feedback-panel-footer button { color:var(--paper); background:var(--ink); }
+
+  @keyframes pulse { 0%,80%,100%{ transform:scale(.65); opacity:.45; } 40%{ transform:scale(1); opacity:1; } }
+
+  @media (max-width:1180px) {
+    .feedback-demo[data-variation="draft-memory"] .feedback-workspace { padding-left:clamp(38px,6vw,86px); }
+    .feedback-demo[data-variation="draft-memory"] .draft-history { display:none; }
+  }
+
+  @media (max-width:820px) {
+    .feedback-demo { --category-rail:0px; }
+    .category-rail-toggle { position:fixed; z-index:65; top:12px; left:14px; display:block; min-height:2.6rem; padding:.5rem .7rem; border:1px solid var(--line); border-radius:999px; background:color-mix(in srgb,var(--paper) 92%,transparent); backdrop-filter:blur(12px); cursor:pointer; }
+    .category-rail { z-index:64; width:min(330px,88vw); padding-top:68px; box-shadow:18px 0 40px rgba(57,45,30,.14); transform:translateX(-105%); transition:transform .22s ease; }
+    .feedback-demo[data-category-open="true"] .category-rail { transform:translateX(0); }
+    .lab-switcher { top:12px; right:14px; left:88px; justify-content:flex-end; min-width:0; }
+    .lab-index-link,.lab-switcher > strong { display:none; }
+    .feedback-workspace,.feedback-demo[data-panel-open="true"]:not([data-variation="margin-tab"]) .feedback-workspace { margin-right:0; margin-left:0; padding:86px 20px 110px; }
+    .editor-stage { width:min(100%,650px); }
+    .article-context { align-items:flex-start; flex-direction:column; gap:.45rem; }
+    .reader-language-list { max-width:100%; margin-bottom:1.7rem; }
+    .reader-language-list button { padding-inline:.5rem; font-size:.64rem; }
+    .editor-title { font-size:clamp(2rem,11vw,3.2rem); }
+    .editor-body { min-height:60vh; font-size:1rem; }
+    .editor-footer { align-items:flex-end; flex-direction:column; }
+    .editor-footer > div { width:100%; justify-content:flex-end; flex-wrap:wrap; }
+    .feedback-panel-toggle { display:flex; }
+    .feedback-demo[data-variation="margin-tab"] > .feedback-panel-toggle { display:none; }
+    .feedback-demo[data-panel-open="true"] > .feedback-panel-toggle { visibility:hidden; }
+    .feedback-panel,.feedback-demo[data-variation="margin-tab"] .feedback-panel,.feedback-demo[data-variation="review-workspace"] .feedback-panel { position:fixed; z-index:67; top:auto; right:8px; bottom:8px; left:8px; width:auto; max-height:min(78svh,680px); border:1px solid var(--line); border-radius:5px; box-shadow:0 18px 50px rgba(57,45,30,.2); transform:translateY(calc(100% + 20px)); }
+    .feedback-demo[data-panel-open="true"] .feedback-panel { transform:translateY(0); }
+    .feedback-demo[data-variation="margin-tab"] .feedback-trigger--edge { top:auto; right:14px; bottom:14px; writing-mode:horizontal-tb; border:1px solid var(--line); border-radius:999px; }
+    .feedback-demo[data-variation="sticky-toolbar"] .editor-toolbar { top:12px; }
+    .feedback-demo[data-variation="draft-memory"] .feedback-workspace { padding-left:20px; }
+  }
+
+  @media (prefers-reduced-motion:reduce) {
+    .category-rail,.feedback-panel,.loading-mark i { transition:none; animation:none; }
+  }
+</style>

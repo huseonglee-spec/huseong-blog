@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 TimeoutStartSec=15min
-WorkingDirectory=/home/huseong/Workspace/.worktrees/huseong-blog-feedback-runtime
+WorkingDirectory=/home/huseong/Workspace/huseong-blog
 EnvironmentFile=/home/huseong/Workspace/huseong-blog/.env.local
 Environment=PATH=/home/huseong/.nvm/versions/node/v25.1.0/bin:/home/huseong/.local/bin:/usr/local/bin:/usr/bin:/bin
 Environment=HUSEONG_BLOG_FEEDBACK_HERMES_PROVIDER=openai-codex

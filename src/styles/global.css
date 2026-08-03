@@ -19,7 +19,29 @@
 html {
   background: var(--paper);
   scroll-behavior: smooth;
+  scrollbar-color: color-mix(in srgb, var(--ink-soft) 52%, transparent) transparent;
   scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+html::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+html::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink-soft) 52%, transparent);
+  background-clip: padding-box;
+}
+
+html::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--ink) 68%, transparent);
 }
 
 body {

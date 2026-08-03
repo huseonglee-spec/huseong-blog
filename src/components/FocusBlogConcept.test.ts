@@ -98,6 +98,17 @@ describe("FocusBlogConcept", () => {
     expect(source).toMatch(/html\s*\{[^}]*scrollbar-gutter:\s*stable;/s);
   });
 
+  it("페이지 스크롤바를 얇고 둥근 손잡이로 직접 디자인한다", async () => {
+    const source = await readFile(globalStyleUrl, "utf8");
+
+    expect(source).toMatch(/html\s*\{[^}]*scrollbar-width:\s*thin;/s);
+    expect(source).toMatch(/html\s*\{[^}]*scrollbar-color:\s*color-mix\([^;]+\)\s+transparent;/s);
+    expect(source).toMatch(/html::\-webkit-scrollbar\s*\{[^}]*width:\s*10px;/s);
+    expect(source).toMatch(/html::\-webkit-scrollbar-track\s*\{[^}]*background:\s*transparent;/s);
+    expect(source).toMatch(/html::\-webkit-scrollbar-thumb\s*\{[^}]*border-radius:\s*999px;/s);
+    expect(source).toContain("html::-webkit-scrollbar-thumb:hover");
+  });
+
   it("언어판 링크를 국기와 구분선이 있는 하나의 분할 컨트롤로 보여준다", async () => {
     const source = await readFile(componentUrl, "utf8");
 

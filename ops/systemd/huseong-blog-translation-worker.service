@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/huseong/Workspace/.worktrees/huseong-blog-feedback-runtime
+WorkingDirectory=/home/huseong/Workspace/huseong-blog
 EnvironmentFile=/home/huseong/Workspace/huseong-blog/.env.local
 Environment=HOME=/home/huseong
 Environment=PATH=/home/huseong/.nvm/versions/node/v25.1.0/bin:/home/huseong/.local/bin:/usr/local/bin:/usr/bin:/bin
@@ -13,7 +13,7 @@ Environment=HUSEONG_BLOG_TRANSLATION_HERMES_PROFILE=linux-coder
 Environment=HUSEONG_BLOG_TRANSLATION_HERMES_PROVIDER=openai-codex
 Environment=HUSEONG_BLOG_TRANSLATION_HERMES_MODEL=gpt-5.6-sol
 Environment=HUSEONG_BLOG_TRANSLATION_HERMES_PYTHON=/home/huseong/.hermes/hermes-agent/venv/bin/python3
-Environment=HUSEONG_BLOG_TRANSLATION_HERMES_BRIDGE=/home/huseong/Workspace/.worktrees/huseong-blog-feedback-runtime/scripts/hermes-oauth-stdin-bridge.py
+Environment=HUSEONG_BLOG_TRANSLATION_HERMES_BRIDGE=/home/huseong/Workspace/huseong-blog/scripts/hermes-oauth-stdin-bridge.py
 ExecStart=/home/huseong/.nvm/versions/node/v25.1.0/bin/node /home/huseong/.local/lib/pnpm-10.28.0/node_modules/pnpm/bin/pnpm.cjs translation:worker
 TimeoutStartSec=15min
 Nice=5
